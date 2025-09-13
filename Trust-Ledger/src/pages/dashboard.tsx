@@ -8,12 +8,17 @@ import { TrustIndicators } from "@/components/TrustIndicators";
 import { useRole } from "@/hooks/useRole";
 import { DollarSign, TrendingUp, Building2, AlertTriangle, Users, FileCheck, Eye, Bot } from "lucide-react";
 import type { DashboardMetrics } from "@/lib/types";
+import { coreAPI } from "@/lib/api";
 
 export default function Dashboard() {
   const { currentRole, roleConfig } = useRole();
 
   const { data: metrics, isLoading, error } = useQuery<DashboardMetrics>({
-    queryKey: ["/api/dashboard/metrics"],
+    queryKey: ["dashboard-metrics"],
+    queryFn: async () => {
+      const response = await coreAPI.getDashboardMetrics();
+      return response.data;
+    },
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 

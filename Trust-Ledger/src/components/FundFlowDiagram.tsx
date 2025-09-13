@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Network, BarChart3 } from "lucide-react";
 import type { FundFlowNode } from "@/lib/types";
+import { fundFlowsAPI } from "@/lib/api";
 
 export function FundFlowDiagram() {
   const [selectedPeriod, setSelectedPeriod] = useState("2024-q3");
@@ -13,17 +14,17 @@ export function FundFlowDiagram() {
   const [viewMode, setViewMode] = useState<"flow" | "tree">("flow");
   const [selectedNode, setSelectedNode] = useState<FundFlowNode | null>(null);
 
-  const { isLoading } = useQuery({
-    queryKey: ["/api/fund-flows", selectedPeriod, selectedDepartment],
+  const { data: fundFlowData, isLoading } = useQuery({
+    queryKey: ["fund-flow-diagram", selectedPeriod, selectedDepartment],
+    queryFn: async () => {
+      const response = await fundFlowsAPI.getFundFlowDiagram();
+      return response.data;
+    },
     refetchInterval: 30000,
   });
 
-  useQuery({
-    queryKey: ["/api/departments"],
-  });
-
-  // Mock data for visualization - in production this would come from the API
-  const mockNodes: FundFlowNode[] = [
+  // Use real data from API or fallback to mock data
+  const nodes = fundFlowData?.nodes || [
     {
       id: "gov-grant",
       name: "Government Grant",
@@ -208,7 +209,7 @@ export function FundFlowDiagram() {
               {/* Fund Source Nodes */}
               <div className="absolute left-4 top-1/2 transform -translate-y-1/2 space-y-4">
                 <h4 className="text-sm font-medium text-muted-foreground mb-2">Fund Sources</h4>
-                {mockNodes.filter(node => node.type === "source").map((node) => (
+                {nodes.filter(node => node.type === "source").map((node: FundFlowNode) => (
                   <div
                     key={node.id}
                     className={`sankey-node ${getStatusColor(node.status)} text-white px-4 py-3 rounded-lg shadow-lg cursor-pointer transition-all hover:scale-105`}
@@ -224,7 +225,7 @@ export function FundFlowDiagram() {
               {/* Department Nodes */}
               <div className="absolute left-1/3 top-1/2 transform -translate-y-1/2 space-y-6">
                 <h4 className="text-sm font-medium text-muted-foreground mb-2">Departments</h4>
-                {mockNodes.filter(node => node.type === "department").map((node) => (
+                {nodes.filter(node => node.type === "department").map((node: FundFlowNode) => (
                   <div
                     key={node.id}
                     className={`sankey-node ${getStatusColor(node.status)} text-white px-4 py-3 rounded-lg shadow-lg cursor-pointer transition-all hover:scale-105`}
@@ -244,7 +245,7 @@ export function FundFlowDiagram() {
               {/* Project/Vendor Nodes */}
               <div className="absolute right-4 top-1/2 transform -translate-y-1/2 space-y-4">
                 <h4 className="text-sm font-medium text-muted-foreground mb-2">Projects</h4>
-                {mockNodes.filter(node => node.type === "project").map((node) => (
+                {nodes.filter(node => node.type === "project").map((node: FundFlowNode    ) => (
                   <div
                     key={node.id}
                     className={`sankey-node ${getStatusColor(node.status)} text-white px-4 py-3 rounded-lg shadow-lg cursor-pointer transition-all hover:scale-105`}
