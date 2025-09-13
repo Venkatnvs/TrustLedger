@@ -1,16 +1,20 @@
 from rest_framework import generics, status, permissions
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.db.models import Q, Sum, Count, Avg
 from django.utils import timezone
 from django.contrib.auth import get_user_model
-from .models import Department, Project, ImpactMetric, CommunityFeedback, BudgetVersion, AuditLog
+from .models import Department, Project, ImpactMetric, CommunityFeedback, BudgetVersion, AuditLog, FundAllocation, ProjectSpending
 from .serializers import (
     DepartmentSerializer, DepartmentListSerializer, ProjectSerializer,
     ProjectListSerializer, ProjectCreateSerializer, ProjectUpdateSerializer,
     ImpactMetricSerializer, CommunityFeedbackSerializer, CommunityFeedbackCreateSerializer,
-    BudgetVersionSerializer, AuditLogSerializer, DashboardMetricsSerializer
+    BudgetVersionSerializer, AuditLogSerializer, DashboardMetricsSerializer,
+    FundAllocationSerializer, FundAllocationCreateSerializer,
+    ProjectSpendingSerializer, ProjectSpendingCreateSerializer
 )
+from .services import AnomalyDetectionService
 
 User = get_user_model()
 
@@ -47,12 +51,17 @@ class ProjectListView(generics.ListCreateAPIView):
     
     def get_queryset(self):
         user = self.request.user
+        
         if user.is_admin or user.is_auditor:
             return Project.objects.all()
         elif user.is_department_head and user.department:
             return Project.objects.filter(department=user.department)
         else:
-            return Project.objects.filter(manager=user)
+            # For regular users, show all public projects or projects in their department
+            if user.department:
+                return Project.objects.filter(Q(is_public=True) | Q(department=user.department))
+            else:
+                return Project.objects.filter(is_public=True)
     
     def get_serializer_class(self):
         if self.request.method == 'GET':
@@ -443,3 +452,146 @@ def enhanced_dashboard_metrics_view(request):
     }
     
     return Response(metrics, status=status.HTTP_200_OK)
+
+
+class FundAllocationListView(generics.ListCreateAPIView):
+    """List and create fund allocations"""
+    serializer_class = FundAllocationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        project_id = self.request.query_params.get('project_id')
+        
+        queryset = FundAllocation.objects.select_related('project', 'allocated_by', 'approved_by')
+        
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+        
+        # Filter based on user role
+        if user.is_admin or user.is_auditor:
+            return queryset
+        elif user.is_department_head and user.department:
+            return queryset.filter(project__department=user.department)
+        else:
+            # For regular users, show allocations for their department projects
+            if user.department:
+                return queryset.filter(project__department=user.department)
+            return queryset.none()
+    
+    def perform_create(self, serializer):
+        serializer.save(allocated_by=self.request.user)
+
+
+class FundAllocationDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update, or delete a fund allocation"""
+    serializer_class = FundAllocationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_admin or user.is_auditor:
+            return FundAllocation.objects.select_related('project', 'allocated_by', 'approved_by')
+        elif user.is_department_head and user.department:
+            return FundAllocation.objects.filter(project__department=user.department).select_related('project', 'allocated_by', 'approved_by')
+        else:
+            if user.department:
+                return FundAllocation.objects.filter(project__department=user.department).select_related('project', 'allocated_by', 'approved_by')
+            return FundAllocation.objects.none()
+
+
+class ProjectSpendingListView(generics.ListCreateAPIView):
+    """List and create project spending records"""
+    serializer_class = ProjectSpendingSerializer
+    
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return ProjectSpendingCreateSerializer
+        return ProjectSpendingSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        project_id = self.request.query_params.get('project')
+        
+        queryset = ProjectSpending.objects.select_related('project', 'created_by', 'approved_by')
+        
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+        
+        if user.is_admin or user.is_auditor:
+            return queryset
+        elif user.is_department_head and user.department:
+            return queryset.filter(project__department=user.department)
+        else:
+            if user.department:
+                return queryset.filter(project__department=user.department)
+            return queryset.filter(created_by=user)
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class ProjectSpendingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update, or delete a project spending record"""
+    serializer_class = ProjectSpendingSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if user.is_admin or user.is_auditor:
+            return ProjectSpending.objects.select_related('project', 'created_by', 'approved_by')
+        elif user.is_department_head and user.department:
+            return ProjectSpending.objects.filter(project__department=user.department).select_related('project', 'created_by', 'approved_by')
+        else:
+            if user.department:
+                return ProjectSpending.objects.filter(project__department=user.department).select_related('project', 'created_by', 'approved_by')
+            return ProjectSpending.objects.filter(created_by=user).select_related('project', 'created_by', 'approved_by')
+    
+    def perform_update(self, serializer):
+        # Only allow status updates for approvers
+        if 'status' in serializer.validated_data:
+            if self.request.user.is_admin or self.request.user.is_auditor or self.request.user.is_department_head:
+                if serializer.validated_data['status'] == 'approved':
+                    serializer.save(approved_by=self.request.user, approved_at=timezone.now())
+                else:
+                    serializer.save()
+            else:
+                # Regular users can only update their own records and only certain fields
+                if serializer.instance.created_by == self.request.user:
+                    allowed_fields = ['description', 'supporting_documents']
+                    for field in allowed_fields:
+                        if field in serializer.validated_data:
+                            setattr(serializer.instance, field, serializer.validated_data[field])
+                    serializer.instance.save()
+                else:
+                    raise PermissionDenied("You can only update your own spending records")
+        else:
+            serializer.save()
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def run_anomaly_detection_view(request):
+    """Run anomaly detection on all fund flows and projects"""
+    try:
+        # Run all anomaly detection methods
+        results = {
+            'budget_overruns': AnomalyDetectionService.detect_budget_overruns(),
+            'unusual_transactions': AnomalyDetectionService.detect_unusual_transactions(),
+            'timeline_anomalies': AnomalyDetectionService.detect_timeline_anomalies(),
+            'pattern_anomalies': AnomalyDetectionService.detect_pattern_anomalies(),
+        }
+        
+        # Count total anomalies detected
+        total_anomalies = sum(len(anomalies) for anomalies in results.values())
+        
+        return Response({
+            'message': 'Anomaly detection completed successfully',
+            'total_anomalies_detected': total_anomalies,
+            'results': results
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': f'Anomaly detection failed: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

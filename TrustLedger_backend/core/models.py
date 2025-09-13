@@ -205,6 +205,54 @@ class BudgetVersion(models.Model):
         return f"{self.project.name} v{self.version_number}"
 
 
+class FundAllocation(models.Model):
+    """Fund allocation tracking for projects"""
+    ALLOCATION_TYPE_CHOICES = [
+        ('initial', 'Initial Allocation'),
+        ('additional', 'Additional Funding'),
+        ('adjustment', 'Budget Adjustment'),
+        ('reallocation', 'Fund Reallocation'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('active', 'Active'),
+    ]
+    
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='fund_allocations')
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    allocation_type = models.CharField(max_length=20, choices=ALLOCATION_TYPE_CHOICES, default='initial')
+    source = models.CharField(max_length=200, help_text="Source of the funding")
+    description = models.TextField(help_text="Description of the allocation")
+    allocated_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='allocated_funds')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_funds')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    allocation_date = models.DateField(help_text="Date when allocation was made")
+    effective_date = models.DateField(help_text="Date when allocation becomes effective")
+    supporting_documents = models.TextField(blank=True, help_text="References to supporting documents")
+    notes = models.TextField(blank=True, help_text="Additional notes")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Fund Allocation'
+        verbose_name_plural = 'Fund Allocations'
+    
+    def __str__(self):
+        return f"{self.project.name} - {self.amount} ({self.allocation_type})"
+    
+    @property
+    def is_approved(self):
+        return self.status == 'approved'
+    
+    @property
+    def is_pending(self):
+        return self.status == 'pending'
+
+
 class AuditLog(models.Model):
     """Immutable audit trail for all changes"""
     ACTION_TYPES = [
@@ -233,3 +281,77 @@ class AuditLog(models.Model):
     
     def __str__(self):
         return f"{self.user.username} {self.action} {self.model_name} {self.object_id}"
+
+
+class ProjectSpending(models.Model):
+    """Project spending records"""
+    CATEGORY_CHOICES = [
+        ('equipment', 'Equipment'),
+        ('materials', 'Materials'),
+        ('labor', 'Labor'),
+        ('services', 'Services'),
+        ('travel', 'Travel'),
+        ('utilities', 'Utilities'),
+        ('other', 'Other'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='spending_records')
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    description = models.TextField()
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    transaction_date = models.DateField()
+    supporting_documents = models.TextField(blank=True, help_text="References to supporting documents")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_spending')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_spending')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-transaction_date', '-created_at']
+        verbose_name = 'Project Spending'
+        verbose_name_plural = 'Project Spending Records'
+    
+    def __str__(self):
+        return f"{self.project.name} - {self.amount} ({self.category})"
+    
+    @property
+    def is_approved(self):
+        return self.status == 'approved'
+    
+    @property
+    def is_pending(self):
+        return self.status == 'pending'
+    
+    def save(self, *args, **kwargs):
+        """Override save to update project spent amount"""
+        old_status = None
+        if self.pk:
+            try:
+                old_instance = ProjectSpending.objects.get(pk=self.pk)
+                old_status = old_instance.status
+            except ProjectSpending.DoesNotExist:
+                pass
+        
+        super().save(*args, **kwargs)
+        
+        # Update project spent amount when status changes
+        if old_status != self.status:
+            self.update_project_spent()
+    
+    def update_project_spent(self):
+        """Update the project's spent amount based on approved spending records"""
+        project = self.project
+        approved_spending = project.spending_records.filter(status='approved').aggregate(
+            total=models.Sum('amount')
+        )['total'] or 0
+        project.spent = approved_spending
+        project.save(update_fields=['spent'])

@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { AlertTriangle, CheckCircle, Clock, Eye, Filter, RefreshCw, X } from 'lucide-react';
 import { fundFlowsAPI } from '@/lib/api';
@@ -136,7 +136,7 @@ export function AnomalyDetection({ onAnomalySelect }: AnomalyDetectionProps) {
     });
   };
 
-  const filteredAnomalies = anomalies?.filter(anomaly => {
+  const filteredAnomalies = anomalies?.filter((anomaly: Anomaly) => {
     if (selectedSeverity !== 'all' && anomaly.severity !== selectedSeverity) return false;
     if (selectedStatus === 'resolved' && !anomaly.resolved) return false;
     if (selectedStatus === 'unresolved' && anomaly.resolved) return false;
@@ -292,6 +292,9 @@ export function AnomalyDetection({ onAnomalySelect }: AnomalyDetectionProps) {
                         <DialogContent>
                           <DialogHeader>
                             <DialogTitle>Resolve Anomaly</DialogTitle>
+                            <DialogDescription>
+                              Provide details about how this anomaly was resolved.
+                            </DialogDescription>
                           </DialogHeader>
                           <div className="space-y-4">
                             <div>

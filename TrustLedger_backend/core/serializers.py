@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Department, Project, ImpactMetric, CommunityFeedback, BudgetVersion, AuditLog
+from .models import Department, Project, ImpactMetric, CommunityFeedback, BudgetVersion, AuditLog, FundAllocation, ProjectSpending
 from accounts.serializers import UserListSerializer
 
 
@@ -58,7 +58,6 @@ class ImpactMetricSerializer(serializers.ModelSerializer):
 class ProjectSerializer(serializers.ModelSerializer):
     """Serializer for Project model"""
     department_name = serializers.CharField(source='department.name', read_only=True)
-    manager_name = serializers.CharField(source='manager.get_full_name', read_only=True)
     remaining_budget = serializers.ReadOnlyField()
     completion_percentage = serializers.ReadOnlyField()
     is_overdue = serializers.ReadOnlyField()
@@ -70,7 +69,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'budget', 'spent', 'status', 'priority',
             'start_date', 'end_date', 'expected_beneficiaries', 'location',
-            'department', 'department_name', 'manager', 'manager_name', 
+            'department', 'department_name', 
             'remaining_budget', 'completion_percentage', 'is_overdue', 'days_remaining',
             'is_public', 'impact_metrics', 'created_at', 'updated_at'
         ]
@@ -90,7 +89,6 @@ class ProjectSerializer(serializers.ModelSerializer):
 class ProjectListSerializer(serializers.ModelSerializer):
     """Simplified serializer for project lists"""
     department_name = serializers.CharField(source='department.name', read_only=True)
-    manager_name = serializers.CharField(source='manager.get_full_name', read_only=True)
     remaining_budget = serializers.ReadOnlyField()
     completion_percentage = serializers.ReadOnlyField()
     
@@ -98,7 +96,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
         model = Project
         fields = [
             'id', 'name', 'budget', 'spent', 'status', 'start_date', 'end_date',
-            'department_name', 'manager_name', 'remaining_budget', 'completion_percentage',
+            'department_name', 'remaining_budget', 'completion_percentage',
             'created_at'
         ]
 
@@ -238,3 +236,59 @@ class DashboardMetricsSerializer(serializers.Serializer):
     trust_score = serializers.IntegerField()
     community_feedback_count = serializers.IntegerField()
     pending_verifications = serializers.IntegerField()
+
+
+class FundAllocationSerializer(serializers.ModelSerializer):
+    """Serializer for fund allocations"""
+    allocated_by_name = serializers.CharField(source='allocated_by.username', read_only=True)
+    approved_by_name = serializers.CharField(source='approved_by.username', read_only=True)
+    project_name = serializers.CharField(source='project.name', read_only=True)
+    
+    class Meta:
+        model = FundAllocation
+        fields = [
+            'id', 'project', 'project_name', 'amount', 'allocation_type', 
+            'source', 'description', 'allocated_by', 'allocated_by_name',
+            'approved_by', 'approved_by_name', 'status', 'allocation_date',
+            'effective_date', 'supporting_documents', 'notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class FundAllocationCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating fund allocations"""
+    
+    class Meta:
+        model = FundAllocation
+        fields = [
+            'project', 'amount', 'allocation_type', 'source', 'description',
+            'allocation_date', 'effective_date', 'supporting_documents', 'notes'
+        ]
+
+
+class ProjectSpendingSerializer(serializers.ModelSerializer):
+    """Serializer for ProjectSpending model"""
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+    approved_by_name = serializers.CharField(source='approved_by.get_full_name', read_only=True)
+    project_name = serializers.CharField(source='project.name', read_only=True)
+    
+    class Meta:
+        model = ProjectSpending
+        fields = [
+            'id', 'project', 'project_name', 'amount', 'description', 'category',
+            'transaction_date', 'supporting_documents', 'status', 'created_by',
+            'created_by_name', 'approved_by', 'approved_by_name', 'approved_at',
+            'rejection_reason', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'created_by']
+
+
+class ProjectSpendingCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating ProjectSpending records"""
+    
+    class Meta:
+        model = ProjectSpending
+        fields = [
+            'project', 'amount', 'description', 'category', 'transaction_date',
+            'supporting_documents', 'status'
+        ]

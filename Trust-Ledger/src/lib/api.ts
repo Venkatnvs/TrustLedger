@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearAuthTokens } from '@/utils/auth';
 
 // Create axios instance
 const api = axios.create({
@@ -34,22 +35,27 @@ api.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refresh_token');
         if (refreshToken) {
+          console.log('Attempting to refresh token...');
           const response = await axios.post('http://localhost:8000/api/token/refresh/', {
             refresh: refreshToken,
           });
           
           const { access } = response.data;
           localStorage.setItem('access_token', access);
+          console.log('Token refreshed successfully');
           
           // Retry original request
           originalRequest.headers.Authorization = `Bearer ${access}`;
           return api(originalRequest);
+        } else {
+          console.log('No refresh token available');
+          throw new Error('No refresh token');
         }
       } catch (refreshError) {
-        // Refresh failed, redirect to login
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        console.log('Token refresh failed:', refreshError);
+        // Refresh failed, clear tokens and redirect to login
+        clearAuthTokens();
+        throw refreshError;
       }
     }
     
@@ -111,6 +117,13 @@ export const coreAPI = {
   
   getProjectStatusSummary: () => api.get('/core/project-status-summary/'),
   getDepartmentPerformance: () => api.get('/core/department-performance/'),
+  
+  // Project Spending
+  getProjectSpending: (projectId?: number) => api.get('/core/project-spending/', { params: projectId ? { project: projectId } : {} }),
+  createProjectSpending: (data: any) => api.post('/core/project-spending/', data),
+  getProjectSpendingRecord: (id: number) => api.get(`/core/project-spending/${id}/`),
+  updateProjectSpending: (id: number, data: any) => api.patch(`/core/project-spending/${id}/`, data),
+  deleteProjectSpending: (id: number) => api.delete(`/core/project-spending/${id}/`),
 };
 
 // Fund Flows API
@@ -158,7 +171,7 @@ export const documentsAPI = {
 
 // Community Feedback API
 export const communityFeedbackAPI = {
-  getFeedback: () => api.get('/core/community-feedback/'),
+  getFeedback: (params?: string) => api.get(`/core/community-feedback/${params ? `?${params}` : ''}`),
   getFeedbackById: (id: number) => api.get(`/core/community-feedback/${id}/`),
   createFeedback: (data: any) => api.post('/core/community-feedback/', data),
   updateFeedback: (id: number, data: any) => api.patch(`/core/community-feedback/${id}/`, data),
@@ -221,6 +234,22 @@ export const aiAPI = {
   getCharacters: () => api.get('/ai/characters/'),
   
   getHealth: () => api.get('/ai/health/'),
+};
+
+// Fund Allocation API
+export const fundAllocationAPI = {
+  getFundAllocations: (projectId?: number) => {
+    const params = projectId ? `?project_id=${projectId}` : '';
+    return api.get(`/core/fund-allocations/${params}`);
+  },
+  
+  getFundAllocation: (id: number) => api.get(`/core/fund-allocations/${id}/`),
+  
+  createFundAllocation: (data: any) => api.post('/core/fund-allocations/', data),
+  
+  updateFundAllocation: (id: number, data: any) => api.patch(`/core/fund-allocations/${id}/`, data),
+  
+  deleteFundAllocation: (id: number) => api.delete(`/core/fund-allocations/${id}/`),
 };
 
 export default api;

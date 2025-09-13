@@ -42,7 +42,7 @@ export default function Login() {
       
       // Use the auth hook to handle login
       console.log('Login response:', response.data);
-      login(response.data.tokens.access, response.data.user);
+      login(response.data.tokens.access, response.data.user, response.data.tokens.refresh);
       
       console.log('Login successful, redirecting to dashboard');
       

@@ -9,6 +9,10 @@ import { Input } from "@/components/ui/input";
 import { FundFlowDiagram } from "@/components/FundFlowDiagram";
 import { TimelineTracking } from "@/components/TimelineTracking";
 import { CommunityFeedbackComponent } from "@/components/CommunityFeedback";
+import { FundFlowCreationModal } from "@/components/FundFlowCreationModal";
+import { BudgetSpendingTracker } from "@/components/BudgetSpendingTracker";
+import { FundFlowActions } from "@/components/FundFlowActions";
+import { FundFlowAnalytics } from "@/components/FundFlowAnalytics";
 import { useRole } from "@/hooks/useRole";
 import { Search, Filter, Download, Eye, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import { coreAPI, fundFlowsAPI } from "@/lib/api";
@@ -18,15 +22,10 @@ interface FundFlow {
   source_name: string;
   target_name: string;
   amount: number;
+  status: 'verified' | 'under_review' | 'anomaly';
+  transaction_date: string;
+  created_at: string;
   description?: string;
-  status: string;
-  transaction_date?: string;
-  created_at?: string;
-  verified_by?: {
-    id: number;
-    username: string;
-  };
-  verified_at?: string;
 }
 
 interface Project {
@@ -52,40 +51,41 @@ export default function FundFlows() {
     queryKey: ["fund-flows", selectedProject === "all" ? undefined : selectedProject],
     queryFn: async () => {
       const response = await fundFlowsAPI.getFundFlows();
-      return response.data.results;
+      console.log('Fund flows API response:', response.data);
+      return response.data.results || [];
     },
   });
 
   const filteredFlows = fundFlows?.filter((flow: FundFlow) => {
-    // Skip flows with missing essential data
-    if (!flow.source_name) {
-      console.warn('Fund flow missing source_name:', flow);
-      return false;
-    }
+    const targetName = flow.target_name || 'Unknown';
+    const sourceName = flow.source_name || 'Unknown Source';
     
     const matchesStatus = statusFilter === "all" || flow.status === statusFilter;
     const matchesSearch = !searchQuery || 
-      flow.source_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      flow.target_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      flow.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesProject = selectedProject === "all" || flow.target_name?.toLowerCase().includes(selectedProject.toLowerCase());
+      sourceName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      targetName.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesProject = selectedProject === "all" || 
+      flow.target_name?.includes(selectedProject);
     return matchesStatus && matchesSearch && matchesProject;
   }) || [];
 
+  console.log('Fund flows data:', fundFlows);
+  console.log('Filtered flows:', filteredFlows);
+
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "approved": return <CheckCircle className="w-4 h-4" />;
-      case "pending": return <Clock className="w-4 h-4" />;
-      case "cancelled": return <AlertTriangle className="w-4 h-4" />;
+      case "verified": return <CheckCircle className="w-4 h-4" />;
+      case "under_review": return <Clock className="w-4 h-4" />;
+      case "anomaly": return <AlertTriangle className="w-4 h-4" />;
       default: return <Clock className="w-4 h-4" />;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "approved": return "text-verified";
-      case "pending": return "text-warning";
-      case "cancelled": return "text-anomaly";
+      case "verified": return "text-verified";
+      case "under_review": return "text-warning";
+      case "anomaly": return "text-anomaly";
       default: return "text-muted-foreground";
     }
   };
@@ -115,11 +115,21 @@ export default function FundFlows() {
   }
 
   return (
-    <main className="min-h-screen bg-background" data-testid="page-fund-flows">
-      <div className="container mx-auto px-4 py-8">
+    <main className="min-h-screen bg-background overflow-x-hidden" data-testid="page-fund-flows">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="text-page-title">Fund Flows</h1>
-          <p className="text-muted-foreground">Track and visualize how funds move through your institution</p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="text-page-title">Fund Flows</h1>
+              <p className="text-muted-foreground">Track and visualize how funds move through your institution</p>
+            </div>
+            <FundFlowCreationModal />
+          </div>
+        </div>
+
+        {/* Budget Spending Tracker */}
+        <div className="mb-8">
+          <BudgetSpendingTracker />
         </div>
 
         {/* Interactive Fund Flow Diagram */}
@@ -130,6 +140,11 @@ export default function FundFlows() {
         {/* Timeline Tracking */}
         <div className="mb-8">
           <TimelineTracking />
+        </div>
+
+        {/* Fund Flow Analytics */}
+        <div className="mb-8">
+          <FundFlowAnalytics />
         </div>
 
         {/* Community Feedback */}
@@ -143,6 +158,7 @@ export default function FundFlows() {
             <CardTitle className="flex items-center justify-between">
               <span>Fund Flow Transactions</span>
               <div className="flex items-center space-x-2">
+                <FundFlowCreationModal />
                 <Button variant="outline" size="sm" data-testid="button-export">
                   <Download className="w-4 h-4 mr-2" />
                   Export
@@ -152,47 +168,45 @@ export default function FundFlows() {
           </CardHeader>
           <CardContent>
             {/* Filters */}
-            <div className="flex flex-wrap items-center gap-4 mb-6">
-              <div className="flex-1 min-w-[250px]">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                  <Input
-                    placeholder="Search fund flows..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                    data-testid="input-search-flows"
-                  />
-                </div>
+            <div className="space-y-4 mb-6">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  placeholder="Search fund flows..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 w-full"
+                  data-testid="input-search-flows"
+                />
               </div>
               
-              <Select value={selectedProject} onValueChange={setSelectedProject}>
-                <SelectTrigger className="w-[200px]" data-testid="select-project-filter">
-                  <SelectValue placeholder="Select Project" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Projects</SelectItem>
-                  {projects?.map((project: Project) => (
-                    <SelectItem key={project.id} value={project.id} data-testid={`option-project-${project.id}`}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Select value={selectedProject} onValueChange={setSelectedProject}>
+                  <SelectTrigger className="w-full" data-testid="select-project-filter">
+                    <SelectValue placeholder="Select Project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Projects</SelectItem>
+                    {projects?.map((project: Project) => (
+                      <SelectItem key={project.id} value={project.id.toString()} data-testid={`option-project-${project.id}`}>
+                        {project.name.length > 30 ? `${project.name.slice(0, 30)}...` : project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[150px]" data-testid="select-status-filter">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="released">Released</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full" data-testid="select-status-filter">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="verified">Verified</SelectItem>
+                    <SelectItem value="under_review">Under Review</SelectItem>
+                    <SelectItem value="anomaly">Anomaly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Fund Flow List */}
@@ -220,21 +234,21 @@ export default function FundFlows() {
               ) : filteredFlows.length > 0 ? (
                 filteredFlows.map((flow: FundFlow) => (
                   <div key={flow.id} className="border border-border rounded-lg p-4 hover:bg-muted/30 transition-colors" data-testid={`flow-item-${flow.id}`}>
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+                      <div className="flex items-center space-x-3 min-w-0 flex-1">
+                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                           {getStatusIcon(flow.status)}
                         </div>
-                        <div>
-                          <h4 className="font-medium text-foreground">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-medium text-foreground truncate">
                             {flow.source_name || 'Unknown Source'} → {flow.target_name || 'Unknown'}
                           </h4>
                           <p className="text-sm text-muted-foreground">
-                            {flow.description || "No description specified"}
+                            Transaction ID: {flow.id}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right flex-shrink-0">
                         <div className="text-lg font-bold text-primary" data-testid={`flow-amount-${flow.id}`}>
                           ₹{parseFloat(flow.amount.toString()).toLocaleString('en-IN')}
                         </div>
@@ -248,32 +262,17 @@ export default function FundFlows() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <div className="flex items-center space-x-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-muted-foreground">
+                      <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
                         <span data-testid={`flow-date-${flow.id}`}>
-                          {flow.created_at ? new Date(flow.created_at).toLocaleDateString('en-IN') : 'No date'}
+                          {flow.transaction_date ? new Date(flow.transaction_date).toLocaleDateString('en-IN') : 'No date'}
                         </span>
-                        {flow.transaction_hash && (
-                          <Badge variant="secondary" className="text-xs">
-                            Blockchain: {flow.transaction_hash.slice(0, 8)}...
-                          </Badge>
-                        )}
-                        {flow.verification_status && (
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs ${flow.verification_status === 'verified' ? 'text-verified border-verified' : 
-                              flow.verification_status === 'under_review' ? 'text-warning border-warning' : 
-                              'text-anomaly border-anomaly'}`}
-                          >
-                            {flow.verification_status.replace('_', ' ')}
-                          </Badge>
-                        )}
+                        <Badge variant="secondary" className="text-xs w-fit">
+                          Created: {new Date(flow.created_at).toLocaleDateString('en-IN')}
+                        </Badge>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm" data-testid={`button-view-flow-${flow.id}`}>
-                          <Eye className="w-4 h-4 mr-1" />
-                          View Details
-                        </Button>
+                      <div className="flex-shrink-0">
+                        <FundFlowActions fundFlow={flow} />
                       </div>
                     </div>
                   </div>

@@ -5,14 +5,24 @@ from django.conf import settings
 from django.core.cache import cache
 import logging
 
-# Google Generative AI
-import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
-
-# LangChain
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
-from langchain.memory import ConversationBufferWindowMemory
+# Google Generative AI - Optional imports
+try:
+    import google.generativeai as genai
+    from google.generativeai.types import HarmCategory, HarmBlockThreshold
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain.schema import HumanMessage, AIMessage, SystemMessage
+    from langchain.memory import ConversationBufferWindowMemory
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    genai = None
+    HarmCategory = None
+    HarmBlockThreshold = None
+    ChatGoogleGenerativeAI = None
+    HumanMessage = None
+    AIMessage = None
+    SystemMessage = None
+    ConversationBufferWindowMemory = None
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import ConversationChain
 
@@ -27,7 +37,7 @@ class GeminiService:
         self.model_name = "gemini-pro"
         
         # Initialize Google Generative AI
-        if self.is_available():
+        if self.is_available() and GEMINI_AVAILABLE:
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel(self.model_name)
             
@@ -56,7 +66,7 @@ class GeminiService:
     
     def is_available(self) -> bool:
         """Check if Gemini API is available"""
-        return bool(self.api_key and self.api_key != 'your_gemini_api_key_here')
+        return bool(GEMINI_AVAILABLE and self.api_key and self.api_key != 'your_gemini_api_key_here')
     
     def _create_conversation_chain(self):
         """Create LangChain conversation chain"""

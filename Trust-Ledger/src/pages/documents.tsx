@@ -32,9 +32,9 @@ interface Document {
   name: string;
   document_type: string;
   description?: string;
-  file_path: string;
-  file_size?: number;
-  verification_status?: string;
+  file: string; // This is the file path from backend
+  size: number; // File size in bytes
+  verified: boolean; // Backend uses boolean, not verification_status string
   project?: {
     id: number;
     name: string;
@@ -43,8 +43,8 @@ interface Document {
     id: number;
     username: string;
   };
-  created_at?: string;
-  updated_at?: string;
+  uploaded_at?: string;
+  verified_at?: string;
 }
 
 interface Project {
@@ -66,22 +66,36 @@ export default function Documents() {
   const { data: documents, isLoading, error } = useQuery({
     queryKey: ["documents", selectedProject === "all" ? undefined : selectedProject],
     queryFn: async () => {
-      const response = await documentsAPI.getDocuments();
-      return response.data.results;
+      try {
+        const response = await documentsAPI.getDocuments();
+        console.log('Documents API response:', response.data);
+        return response.data.results || [];
+      } catch (err) {
+        console.error('Error fetching documents:', err);
+        throw err;
+      }
     },
   });
 
   const { data: projects } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const response = await coreAPI.getProjects();
-      return response.data.results;
+      try {
+        const response = await coreAPI.getProjects();
+        return response.data.results;
+      } catch (err) {
+        console.error('Error fetching projects:', err);
+        throw err;
+      }
     },
   });
 
   const filteredDocuments = documents?.filter((doc: Document) => {
     const matchesType = selectedType === "all" || doc.document_type === selectedType;
-    const matchesVerification = verificationFilter === "all" || doc.verification_status === verificationFilter;
+    const matchesVerification = verificationFilter === "all" || 
+      (verificationFilter === "verified" && doc.verified) ||
+      (verificationFilter === "under_review" && !doc.verified && !doc.verified_at) ||
+      (verificationFilter === "rejected" && !doc.verified && doc.verified_at);
     const matchesSearch = !searchQuery || 
       doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       doc.description?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -102,22 +116,16 @@ export default function Documents() {
     }
   };
 
-  const getVerificationIcon = (status?: string) => {
-    switch (status) {
-      case "verified": return <CheckCircle className="w-4 h-4 text-verified" />;
-      case "under_review": return <Clock className="w-4 h-4 text-warning" />;
-      case "rejected": return <AlertTriangle className="w-4 h-4 text-anomaly" />;
-      default: return <Clock className="w-4 h-4 text-muted-foreground" />;
-    }
+  const getVerificationIcon = (doc: Document) => {
+    if (doc.verified) return <CheckCircle className="w-4 h-4 text-verified" />;
+    if (!doc.verified && doc.verified_at) return <AlertTriangle className="w-4 h-4 text-anomaly" />;
+    return <Clock className="w-4 h-4 text-warning" />;
   };
 
-  const getVerificationColor = (status?: string) => {
-    switch (status) {
-      case "verified": return "text-verified border-verified bg-verified/10";
-      case "under_review": return "text-warning border-warning bg-warning/10";
-      case "rejected": return "text-anomaly border-anomaly bg-anomaly/10";
-      default: return "text-muted-foreground border-muted bg-muted/10";
-    }
+  const getVerificationColor = (doc: Document) => {
+    if (doc.verified) return "text-verified border-verified bg-verified/10";
+    if (!doc.verified && doc.verified_at) return "text-anomaly border-anomaly bg-anomaly/10";
+    return "text-warning border-warning bg-warning/10";
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -128,10 +136,11 @@ export default function Documents() {
   };
 
   const handleDownload = (document: Document) => {
-    // Create a download link
+    // Create a download link using the authenticated file serving endpoint
     const link = window.document.createElement('a');
-    link.href = `/api/files/${document.file_path.split('/').pop()}`;
+    link.href = `http://localhost:8000/api/documents/${document.id}/file/`;
     link.download = document.name;
+    link.target = '_blank';
     link.click();
     
     toast({
@@ -141,8 +150,8 @@ export default function Documents() {
   };
 
   const handleView = (document: Document) => {
-    // Open document in new tab
-    window.open(`/api/files/${document.file_path.split('/').pop()}`, '_blank');
+    // Open document in new tab using the authenticated file serving endpoint
+    window.open(`http://localhost:8000/api/documents/${document.id}/file/`, '_blank');
   };
 
   if (error) {
@@ -158,14 +167,14 @@ export default function Documents() {
   }
 
   return (
-    <main className="min-h-screen bg-background" data-testid="page-documents">
-      <div className="container mx-auto px-4 py-8">
+    <main className="min-h-screen bg-background overflow-x-hidden" data-testid="page-documents">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="text-page-title">Digital Receipt System</h1>
           <p className="text-muted-foreground">Upload, view, and verify invoices, vendor documents, and proof of work</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
           {/* Document Upload */}
           <div className="space-y-6">
             <Card className="shadow-sm" data-testid="card-document-upload">
@@ -186,7 +195,7 @@ export default function Documents() {
               {showUpload && (
                 <CardContent>
                   <DocumentUpload onUploadComplete={() => {
-                    queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+                    queryClient.invalidateQueries({ queryKey: ["documents"] });
                     setShowUpload(false);
                   }} />
                 </CardContent>
@@ -208,20 +217,20 @@ export default function Documents() {
                   </div>
                   <div className="text-center p-4 border border-border rounded-lg">
                     <div className="text-2xl font-bold text-verified">
-                      {documents?.filter((d: Document) => d.verification_status === 'verified').length || 0}
+                      {documents?.filter((d: Document) => d.verified).length || 0}
                     </div>
                     <div className="text-sm text-muted-foreground">Verified</div>
                   </div>
                   <div className="text-center p-4 border border-border rounded-lg">
                     <div className="text-2xl font-bold text-warning">
-                      {documents?.filter((d: Document) => d.verification_status === 'under_review').length || 0}
+                      {documents?.filter((d: Document) => !d.verified && !d.verified_at).length || 0}
                     </div>
                     <div className="text-sm text-muted-foreground">Under Review</div>
                   </div>
                   <div className="text-center p-4 border border-border rounded-lg">
                     <div className="text-2xl font-bold text-muted-foreground">
-                      {documents?.reduce((sum: number, d: Document) => sum + (d.file_size || 0), 0) ? 
-                        formatFileSize(documents.reduce((sum: number, d: Document) => sum + (d.file_size || 0), 0)) : 
+                      {documents?.reduce((sum: number, d: Document) => sum + (d.size || 0), 0) ? 
+                        formatFileSize(documents.reduce((sum: number, d: Document) => sum + (d.size || 0), 0)) : 
                         '0 MB'
                       }
                     </div>
@@ -239,59 +248,59 @@ export default function Documents() {
             </CardHeader>
             <CardContent>
               {/* Filters */}
-              <div className="flex flex-wrap items-center gap-4 mb-6">
-                <div className="flex-1 min-w-[200px]">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                    <Input
-                      placeholder="Search documents..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                      data-testid="input-search-documents"
-                    />
-                  </div>
+              <div className="space-y-4 mb-6">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input
+                    placeholder="Search documents..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 w-full"
+                    data-testid="input-search-documents"
+                  />
                 </div>
                 
-                <Select value={selectedProject} onValueChange={setSelectedProject}>
-                  <SelectTrigger className="w-[150px]" data-testid="select-project-filter">
-                    <SelectValue placeholder="Project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Projects</SelectItem>
-                    {projects?.map((project: Project) => (
-                      <SelectItem key={project.id} value={project.id.toString()}>
-                        {project.name.slice(0, 20)}...
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <Select value={selectedProject} onValueChange={setSelectedProject}>
+                    <SelectTrigger className="w-full" data-testid="select-project-filter">
+                      <SelectValue placeholder="Project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Projects</SelectItem>
+                      {projects?.map((project: Project) => (
+                        <SelectItem key={project.id} value={project.id.toString()}>
+                          {project.name.length > 20 ? `${project.name.slice(0, 20)}...` : project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                <Select value={selectedType} onValueChange={setSelectedType}>
-                  <SelectTrigger className="w-[140px]" data-testid="select-type-filter">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="invoice">Invoice</SelectItem>
-                    <SelectItem value="receipt">Receipt</SelectItem>
-                    <SelectItem value="contract">Contract</SelectItem>
-                    <SelectItem value="proof_of_work">Proof of Work</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <Select value={selectedType} onValueChange={setSelectedType}>
+                    <SelectTrigger className="w-full" data-testid="select-type-filter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="invoice">Invoice</SelectItem>
+                      <SelectItem value="receipt">Receipt</SelectItem>
+                      <SelectItem value="contract">Contract</SelectItem>
+                      <SelectItem value="proof_of_work">Proof of Work</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
 
-                <Select value={verificationFilter} onValueChange={setVerificationFilter}>
-                  <SelectTrigger className="w-[140px]" data-testid="select-verification-filter">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="verified">Verified</SelectItem>
-                    <SelectItem value="under_review">Under Review</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <Select value={verificationFilter} onValueChange={setVerificationFilter}>
+                    <SelectTrigger className="w-full" data-testid="select-verification-filter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="verified">Verified</SelectItem>
+                      <SelectItem value="under_review">Under Review</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Documents List */}
@@ -323,13 +332,13 @@ export default function Documents() {
                       className="border border-border rounded-lg p-4 hover:bg-muted/30 transition-colors" 
                       data-testid={`document-item-${document.id}`}
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
+                        <div className="flex items-center space-x-3 min-w-0 flex-1">
+                          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                             {getDocumentIcon(document.document_type)}
                           </div>
-                          <div>
-                            <h4 className="font-medium text-foreground" data-testid={`document-name-${document.id}`}>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-medium text-foreground truncate" data-testid={`document-name-${document.id}`}>
                               {document.name}
                             </h4>
                             <p className="text-sm text-muted-foreground capitalize">
@@ -337,16 +346,17 @@ export default function Documents() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 flex-shrink-0">
                           <span className="flex items-center">
-                            {getVerificationIcon(document.verification_status)}
+                            {getVerificationIcon(document)}
                           </span>
                           <Badge 
                             variant="outline" 
-                            className={`text-xs ${getVerificationColor(document.verification_status)}`}
+                            className={`text-xs ${getVerificationColor(document)}`}
                             data-testid={`document-status-${document.id}`}
                           >
-                            {document.verification_status?.replace('_', ' ') || 'Pending'}
+                            {document.verified ? 'Verified' : 
+                             (!document.verified && document.verified_at) ? 'Rejected' : 'Under Review'}
                           </Badge>
                         </div>
                       </div>
@@ -364,15 +374,15 @@ export default function Documents() {
                         </span>
                         <span className="flex items-center">
                           <Calendar className="w-3 h-3 mr-1" />
-                          {document.created_at ? new Date(document.created_at).toLocaleDateString('en-IN') : 'No date'}
+                          {document.uploaded_at ? new Date(document.uploaded_at).toLocaleDateString('en-IN') : 'No date'}
                         </span>
                       </div>
                       
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 text-xs text-muted-foreground">
                           <span className="flex items-center">
                             <FileText className="w-3 h-3 mr-1" />
-                            {formatFileSize(document.file_size)}
+                            {formatFileSize(document.size)}
                           </span>
                           <span className="flex items-center">
                             <User className="w-3 h-3 mr-1" />
@@ -385,6 +395,7 @@ export default function Documents() {
                             size="sm" 
                             onClick={() => handleDownload(document)}
                             data-testid={`button-download-${document.id}`}
+                            className="flex-1 sm:flex-none"
                           >
                             <Download className="w-4 h-4 mr-1" />
                             Download
@@ -394,6 +405,7 @@ export default function Documents() {
                             size="sm" 
                             onClick={() => handleView(document)}
                             data-testid={`button-view-${document.id}`}
+                            className="flex-1 sm:flex-none"
                           >
                             <Eye className="w-4 h-4 mr-1" />
                             View

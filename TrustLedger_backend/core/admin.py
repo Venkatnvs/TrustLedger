@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     Department, Project, ImpactMetric, CommunityFeedback, 
-    BudgetVersion, AuditLog
+    BudgetVersion, FundAllocation, AuditLog
 )
 
 @admin.register(Department)
@@ -42,6 +42,15 @@ class BudgetVersionAdmin(admin.ModelAdmin):
     search_fields = ['project__name', 'version_number', 'change_reason']
     ordering = ['-changed_at']
     raw_id_fields = ['project', 'changed_by', 'previous_version']
+
+@admin.register(FundAllocation)
+class FundAllocationAdmin(admin.ModelAdmin):
+    list_display = ['project', 'amount', 'allocation_type', 'status', 'allocated_by', 'allocation_date']
+    list_filter = ['allocation_type', 'status', 'allocation_date', 'project__department']
+    search_fields = ['project__name', 'description', 'source']
+    readonly_fields = ['created_at', 'updated_at']
+    ordering = ['-created_at']
+    raw_id_fields = ['project', 'allocated_by', 'approved_by']
 
 @admin.register(AuditLog)
 class AuditLogAdmin(admin.ModelAdmin):

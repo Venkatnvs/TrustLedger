@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { coreAPI, documentsAPI } from "@/lib/api";
+import { coreAPI, documentsAPI, fundFlowsAPI } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +38,7 @@ export function TrustIndicators() {
   const { data: anomalies, isLoading: anomaliesLoading } = useQuery({
     queryKey: ["/api/anomalies"],
     queryFn: async () => {
-      const response = await coreAPI.getAnomalies();
+      const response = await fundFlowsAPI.getAnomalies();
       return response.data.results;
     },
   });

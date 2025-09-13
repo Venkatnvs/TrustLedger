@@ -11,6 +11,10 @@ import { Progress } from "@/components/ui/progress";
 import { ImpactVisualization } from "@/components/ImpactVisualization";
 import { BudgetManagement } from "@/components/BudgetManagement";
 import { AnomalyDetection } from "@/components/AnomalyDetection";
+import { ProjectCreationModal } from "@/components/ProjectCreationModal";
+import { FundFlowCreationModal } from "@/components/FundFlowCreationModal";
+import { ProjectSpendingModal } from "@/components/ProjectSpendingModal";
+import { FundAllocationTimeline } from "@/components/FundAllocationTimeline";
 import { useRole } from "@/hooks/useRole";
 import { 
   Search, 
@@ -36,10 +40,12 @@ interface Project {
   status: string;
   budget: number;
   spent: number;
+  remaining_budget: number;
   department?: {
     id: number;
     name: string;
   };
+  department_name?: string;
   vendor?: {
     id: number;
     name: string;
@@ -49,8 +55,8 @@ interface Project {
   impact_score?: number;
   verification_status?: string;
   location?: string;
-  created_at?: string;
-  updated_at?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface Department {
@@ -63,6 +69,8 @@ export default function Projects() {
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [isSpendingModalOpen, setIsSpendingModalOpen] = useState(false);
 
   const { data: projects, isLoading, error } = useQuery({
     queryKey: ["projects", { departmentId: departmentFilter === "all" ? undefined : departmentFilter, status: statusFilter === "all" ? undefined : statusFilter }],
@@ -81,17 +89,29 @@ export default function Projects() {
   });
 
   const filteredProjects = projects?.filter((project: Project) => {
-    if (!searchQuery) return true;
-    return project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           project.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    // Search filter
+    const matchesSearch = !searchQuery || 
+      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Department filter
+    const matchesDepartment = departmentFilter === "all" || 
+      project.department?.id.toString() === departmentFilter;
+    
+    // Status filter
+    const matchesStatus = statusFilter === "all" || 
+      project.status === statusFilter;
+    
+    return matchesSearch && matchesDepartment && matchesStatus;
   }) || [];
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completed": return <CheckCircle className="w-4 h-4" />;
-      case "approved": return <TrendingUp className="w-4 h-4" />;
-      case "pending": return <Clock className="w-4 h-4" />;
+      case "active": return <TrendingUp className="w-4 h-4" />;
+      case "planning": return <Clock className="w-4 h-4" />;
       case "cancelled": return <AlertTriangle className="w-4 h-4" />;
+      case "on_hold": return <Clock className="w-4 h-4" />;
       default: return <Clock className="w-4 h-4" />;
     }
   };
@@ -99,9 +119,10 @@ export default function Projects() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "completed": return "text-verified bg-verified/10 border-verified";
-      case "approved": return "text-primary bg-primary/10 border-primary";
-      case "pending": return "text-warning bg-warning/10 border-warning";
+      case "active": return "text-primary bg-primary/10 border-primary";
+      case "planning": return "text-warning bg-warning/10 border-warning";
       case "cancelled": return "text-anomaly bg-anomaly/10 border-anomaly";
+      case "on_hold": return "text-muted-foreground bg-muted/10 border-muted";
       default: return "text-muted-foreground bg-muted/10 border-muted";
     }
   };
@@ -116,8 +137,8 @@ export default function Projects() {
   };
 
   const calculateProgress = (project: Project) => {
-    const allocated = project.spent;
-    const total = project.budget;
+    const allocated = Number(project.spent);
+    const total = Number(project.budget);
     return total > 0 ? Math.round((allocated / total) * 100) : 0;
   };
 
@@ -142,19 +163,44 @@ export default function Projects() {
               <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="text-page-title">Projects</h1>
               <p className="text-muted-foreground">Monitor project progress, budgets, and impact metrics</p>
             </div>
-            {currentRole === 'admin' as any && (
+            <ProjectCreationModal>
               <Button className="flex items-center space-x-2">
                 <Building2 className="w-4 h-4" />
                 <span>Create Project</span>
               </Button>
-            )}
+            </ProjectCreationModal>
           </div>
         </div>
 
-        {/* Impact Visualization */}
-        <div className="mb-8">
-          <ImpactVisualization />
-        </div>
+        {/* Summary Stats */}
+        {filteredProjects.length > 0 && (
+          <div className="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-primary">
+                {filteredProjects.length}
+              </div>
+              <div className="text-sm text-muted-foreground">Total Projects</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-verified">
+                {filteredProjects.filter((p: Project) => p.status === 'completed').length}
+              </div>
+              <div className="text-sm text-muted-foreground">Completed</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-warning">
+                {filteredProjects.filter((p: Project) => p.status === 'active').length}
+              </div>
+              <div className="text-sm text-muted-foreground">Active</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-foreground">
+                {formatCurrency(filteredProjects.reduce((sum: number, p: Project) => sum + Number(p.budget), 0))}
+              </div>
+              <div className="text-sm text-muted-foreground">Total Budget</div>
+            </div>
+          </div>
+        )}
 
         {/* Budget Management and Anomaly Detection */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
@@ -168,10 +214,12 @@ export default function Projects() {
             <CardTitle className="flex items-center justify-between">
               <span>All Projects</span>
               <div className="flex items-center space-x-2">
-                  <Button variant="default" size="sm" data-testid="button-add-project">
-                    <Building2 className="w-4 h-4 mr-2" />
-                    Add Project
-                  </Button>
+                  <ProjectCreationModal>
+                    <Button variant="default" size="sm" data-testid="button-add-project">
+                      <Building2 className="w-4 h-4 mr-2" />
+                      Add Project
+                    </Button>
+                  </ProjectCreationModal>
               </div>
             </CardTitle>
           </CardHeader>
@@ -211,10 +259,11 @@ export default function Projects() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="planning">Planning</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="on_hold">On Hold</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -286,7 +335,7 @@ export default function Projects() {
                         <div className="space-y-1">
                           <p className="text-xs text-muted-foreground">Total Budget</p>
                           <p className="text-lg font-bold text-primary" data-testid={`project-budget-${project.id}`}>
-                            {formatCurrency(project.budget)}
+                            {formatCurrency(Number(project.budget))}
                           </p>
                         </div>
                         <div className="space-y-1">
@@ -329,7 +378,7 @@ export default function Projects() {
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
-                          <Button 
+                          {/* <Button 
                             variant="outline" 
                             size="sm" 
                             data-testid={`button-view-project-${project.id}`}
@@ -340,6 +389,19 @@ export default function Projects() {
                           >
                             <Eye className="w-4 h-4 mr-1" />
                             View
+                          </Button> */}
+                          <FundFlowCreationModal />
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            data-testid={`button-manage-spending-${project.id}`}
+                            onClick={() => {
+                              setSelectedProject(project);
+                              setIsSpendingModalOpen(true);
+                            }}
+                          >
+                            <DollarSign className="w-4 h-4 mr-1" />
+                            Manage Spending
                           </Button>
                           <Link href={`/documents?projectId=${project.id}`}>
                             <Button variant="outline" size="sm" data-testid={`button-documents-${project.id}`}>
@@ -372,38 +434,42 @@ export default function Projects() {
               )}
             </div>
 
-            {/* Summary Stats */}
-            {filteredProjects.length > 0 && (
-              <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-primary">
-                    {filteredProjects.length}
-                  </div>
-                  <div className="text-sm text-muted-foreground">Total Projects</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-verified">
-                    {filteredProjects.filter((p: Project) => p.status === 'completed').length}
-                  </div>
-                  <div className="text-sm text-muted-foreground">Completed</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-warning">
-                    {filteredProjects.filter((p: Project) => p.status === 'approved').length}
-                  </div>
-                  <div className="text-sm text-muted-foreground">Active</div>
-                </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold text-foreground">
-            {formatCurrency(filteredProjects.reduce((sum: number, p: Project) => sum + p.budget, 0))}
-          </div>
-          <div className="text-sm text-muted-foreground">Total Budget</div>
-        </div>
+            {/* Fund Allocation Timeline Section */}
+            {filteredProjects && filteredProjects.length > 0 && (
+              <div className="mt-8">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="w-5 h-5" />
+                      Fund Allocation Timeline
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {filteredProjects.map((project: Project) => (
+                        <div key={project.id} className="border rounded-lg p-4">
+                          <h4 className="font-medium mb-3">{project.name}</h4>
+                          <FundAllocationTimeline project={project} />
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
+
           </CardContent>
         </Card>
       </div>
+
+      {/* Project Spending Modal */}
+      {selectedProject && (
+        <ProjectSpendingModal 
+          project={selectedProject} 
+          open={isSpendingModalOpen}
+          onOpenChange={setIsSpendingModalOpen}
+        />
+      )}
     </main>
   );
 }

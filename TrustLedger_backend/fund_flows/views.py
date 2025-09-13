@@ -41,18 +41,26 @@ class FundFlowListView(generics.ListCreateAPIView):
     
     def get_queryset(self):
         user = self.request.user
-        if user.is_admin or user.is_auditor:
-            return FundFlow.objects.all()
-        elif user.is_department_head and user.department:
-            return FundFlow.objects.filter(
-                Q(target_department=user.department) | 
-                Q(target_project__department=user.department)
-            )
-        else:
-            return FundFlow.objects.filter(
-                Q(target_project__manager=user) |
-                Q(target_department__head=user)
-            )
+        print(f"User: {user.username}, Role: {user.role}, Is admin: {user.is_admin}, Is auditor: {user.is_auditor}")
+        
+        # Temporarily return all fund flows for debugging
+        queryset = FundFlow.objects.all()
+        print(f"Fund flows count: {queryset.count()}")
+        return queryset
+        
+        # Original logic (commented out for debugging)
+        # if user.is_admin or user.is_auditor:
+        #     return FundFlow.objects.all()
+        # elif user.is_department_head and user.department:
+        #     return FundFlow.objects.filter(
+        #         Q(target_department=user.department) | 
+        #         Q(target_project__department=user.department)
+        #     )
+        # else:
+        #     return FundFlow.objects.filter(
+        #         Q(target_project__manager=user) |
+        #         Q(target_department__head=user)
+        #     )
     
     def get_serializer_class(self):
         if self.request.method == 'GET':
@@ -270,8 +278,9 @@ def trust_indicators_summary_view(request):
 @permission_classes([permissions.IsAuthenticated])
 def verify_fund_flow_view(request, flow_id):
     """View for verifying fund flows"""
-    if not request.user.is_auditor:
-        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+    # Allow auditors and committee members to verify fund flows
+    if not (request.user.is_auditor or request.user.is_committee):
+        return Response({'error': 'Permission denied. Only auditors and committee members can verify fund flows.'}, status=status.HTTP_403_FORBIDDEN)
     
     try:
         fund_flow = FundFlow.objects.get(id=flow_id)

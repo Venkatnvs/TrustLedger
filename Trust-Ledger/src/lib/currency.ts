@@ -78,6 +78,11 @@ export class CurrencyService {
   }
 
   public format(amount: number, currency?: string): string {
+    // Handle undefined or null amounts
+    if (amount === undefined || amount === null || isNaN(amount)) {
+      return '₹0.00';
+    }
+    
     const targetCurrency = currency || this.currentCurrency;
     const convertedAmount = this.convert(amount, 'INR', targetCurrency);
     const symbol = CURRENCY_SYMBOLS[targetCurrency] || '₹';
@@ -91,6 +96,11 @@ export class CurrencyService {
   }
 
   public formatCompact(amount: number, currency?: string): string {
+    // Handle undefined or null amounts
+    if (amount === undefined || amount === null || isNaN(amount)) {
+      return '₹0';
+    }
+    
     const targetCurrency = currency || this.currentCurrency;
     const convertedAmount = this.convert(amount, 'INR', targetCurrency);
     const symbol = CURRENCY_SYMBOLS[targetCurrency] || '₹';

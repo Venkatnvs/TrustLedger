@@ -113,12 +113,14 @@ export function DocumentUpload({ onUploadComplete }: DocumentUploadProps) {
 
         const formData = new FormData();
         formData.append('file', uploadFile.file);
-        formData.append('project_id', selectedProject);
+        formData.append('name', uploadFile.file.name);
+        formData.append('project', selectedProject);
         formData.append('document_type', documentType);
-        formData.append('description', description);
 
         try {
+          console.log('Uploading file:', uploadFile.file.name, 'to project:', selectedProject);
           const response = await documentsAPI.uploadDocument(formData);
+          console.log('Upload response:', response);
           
           setFiles(prev => prev.map(f => 
             f.id === uploadFile.id 
@@ -128,12 +130,14 @@ export function DocumentUpload({ onUploadComplete }: DocumentUploadProps) {
 
           return response;
         } catch (error: any) {
+          console.error('Upload error:', error);
+          console.error('Error response:', error.response?.data);
           setFiles(prev => prev.map(f => 
             f.id === uploadFile.id 
               ? { 
                   ...f, 
                   status: 'error' as const, 
-                  error: error.response?.data?.message || 'Upload failed'
+                  error: error.response?.data?.message || error.message || 'Upload failed'
                 }
               : f
           ));

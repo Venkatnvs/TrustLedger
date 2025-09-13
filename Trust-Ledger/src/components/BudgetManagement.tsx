@@ -102,7 +102,10 @@ export function BudgetManagement({ projectId, onBudgetChange }: BudgetManagement
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | undefined | null) => {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return '₹0';
+    }
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
@@ -111,7 +114,9 @@ export function BudgetManagement({ projectId, onBudgetChange }: BudgetManagement
   };
 
   const getBudgetStatus = (project: Project) => {
-    const utilizationPercentage = (project.spent / project.budget) * 100;
+    const budget = Number(project.budget) || 0;
+    const spent = Number(project.spent) || 0;
+    const utilizationPercentage = budget > 0 ? (spent / budget) * 100 : 0;
     if (utilizationPercentage >= 100) return { status: 'over-budget', color: 'text-red-600' };
     if (utilizationPercentage >= 80) return { status: 'near-limit', color: 'text-orange-600' };
     if (utilizationPercentage >= 50) return { status: 'moderate', color: 'text-yellow-600' };
@@ -148,7 +153,7 @@ export function BudgetManagement({ projectId, onBudgetChange }: BudgetManagement
                     <span className="text-sm font-medium">Total Budget</span>
                   </div>
                   <div className="text-2xl font-bold mt-2">
-                    {formatCurrency(projects?.reduce((sum: number, p: Project) => sum + p.budget, 0) || 0)}
+                    {formatCurrency(projects?.reduce((sum: number, p: Project) => sum + (Number(p.budget) || 0), 0) || 0)}
                   </div>
                 </CardContent>
               </Card>
@@ -160,7 +165,7 @@ export function BudgetManagement({ projectId, onBudgetChange }: BudgetManagement
                     <span className="text-sm font-medium">Total Spent</span>
                   </div>
                   <div className="text-2xl font-bold mt-2">
-                    {formatCurrency(projects?.reduce((sum: number, p: Project) => sum + p.spent, 0) || 0)}
+                    {formatCurrency(projects?.reduce((sum: number, p: Project) => sum + (Number(p.spent) || 0), 0) || 0)}
                   </div>
                 </CardContent>
               </Card>
@@ -173,8 +178,8 @@ export function BudgetManagement({ projectId, onBudgetChange }: BudgetManagement
                   </div>
                   <div className="text-2xl font-bold mt-2">
                     {formatCurrency(
-                      (projects?.reduce((sum: number, p: Project) => sum + p.budget, 0) || 0) - 
-                      (projects?.reduce((sum: number, p: Project) => sum + p.spent, 0) || 0)
+                      (projects?.reduce((sum: number, p: Project) => sum + (Number(p.budget) || 0), 0) || 0) - 
+                      (projects?.reduce((sum: number, p: Project) => sum + (Number(p.spent) || 0), 0) || 0)
                     )}
                   </div>
                 </CardContent>
@@ -189,7 +194,9 @@ export function BudgetManagement({ projectId, onBudgetChange }: BudgetManagement
               <CardContent>
                 <div className="space-y-4">
                   {projects?.slice(0, 5).map((project: Project) => {
-                    const utilizationPercentage = (project.spent / project.budget) * 100;
+                    const budget = Number(project.budget) || 0;
+                    const spent = Number(project.spent) || 0;
+                    const utilizationPercentage = budget > 0 ? (spent / budget) * 100 : 0;
                     const budgetStatus = getBudgetStatus(project);
                     
                     return (
@@ -227,6 +234,7 @@ export function BudgetManagement({ projectId, onBudgetChange }: BudgetManagement
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Edit Project Budget</DialogTitle>
+
                   </DialogHeader>
                   <div className="space-y-4">
                     <div>
@@ -295,7 +303,9 @@ export function BudgetManagement({ projectId, onBudgetChange }: BudgetManagement
                 </div>
               ) : (
                 filteredProjects?.map((project: Project) => {
-                  const utilizationPercentage = (project.spent / project.budget) * 100;
+                  const budget = Number(project.budget) || 0;
+                  const spent = Number(project.spent) || 0;
+                  const utilizationPercentage = budget > 0 ? (spent / budget) * 100 : 0;
                   const budgetStatus = getBudgetStatus(project);
                   
                   return (
@@ -326,7 +336,7 @@ export function BudgetManagement({ projectId, onBudgetChange }: BudgetManagement
                               </span>
                               <span className="flex items-center space-x-1">
                                 <TrendingDown className="w-4 h-4" />
-                                <span>Remaining: {formatCurrency(project.budget - project.spent)}</span>
+                                <span>Remaining: {formatCurrency(budget - spent)}</span>
                               </span>
                             </div>
                             

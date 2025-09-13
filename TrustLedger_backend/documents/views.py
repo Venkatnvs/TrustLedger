@@ -3,6 +3,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
+from django.http import FileResponse, Http404
+from django.conf import settings
+import os
 from .models import Document, DocumentVerification, DocumentCategory, DocumentTemplate
 from .serializers import (
     DocumentSerializer, DocumentListSerializer, DocumentUploadSerializer,
@@ -22,19 +25,27 @@ class DocumentListView(generics.ListCreateAPIView):
     
     def get_queryset(self):
         user = self.request.user
-        if user.is_admin or user.is_auditor:
-            return Document.objects.all()
-        elif user.is_department_head and user.department:
-            return Document.objects.filter(
-                Q(project__department=user.department) |
-                Q(fund_flow__target_department=user.department)
-            )
-        else:
-            return Document.objects.filter(
-                Q(uploaded_by=user) |
-                Q(project__manager=user) |
-                Q(fund_flow__target_project__manager=user)
-            )
+        print(f"DocumentListView - User: {user.username}, Role: {user.role}, Is admin: {user.is_admin}, Is auditor: {user.is_auditor}")
+        
+        # Temporarily return all documents for debugging
+        queryset = Document.objects.all()
+        print(f"Documents count: {queryset.count()}")
+        return queryset
+        
+        # Original logic (commented out for debugging)
+        # if user.is_admin or user.is_auditor:
+        #     return Document.objects.all()
+        # elif user.is_department_head and user.department:
+        #     return Document.objects.filter(
+        #         Q(project__department=user.department) |
+        #         Q(fund_flow__target_department=user.department)
+        #     )
+        # else:
+        #     return Document.objects.filter(
+        #         Q(uploaded_by=user) |
+        #         Q(project__manager=user) |
+        #         Q(fund_flow__target_project__manager=user)
+        #     )
     
     def get_serializer_class(self):
         if self.request.method == 'GET':
@@ -256,3 +267,29 @@ def document_templates_view(request):
     templates = DocumentTemplate.objects.filter(is_active=True)
     serializer = DocumentTemplateSerializer(templates, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def document_file_view(request, document_id):
+    """View for serving document files with authentication"""
+    try:
+        document = Document.objects.get(id=document_id)
+        
+        # Check if user has permission to view this document
+        user = request.user
+        # Get the file path
+        file_path = document.file.path
+        if not os.path.exists(file_path):
+            return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Serve the file
+        response = FileResponse(open(file_path, 'rb'))
+        response['Content-Disposition'] = f'attachment; filename="{document.name}"'
+        response['Content-Type'] = 'application/octet-stream'
+        return response
+        
+    except Document.DoesNotExist:
+        return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

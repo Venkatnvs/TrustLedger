@@ -5,6 +5,7 @@ urlpatterns = [
     # Documents
     path('', views.DocumentListView.as_view(), name='document-list'),
     path('<int:pk>/', views.DocumentDetailView.as_view(), name='document-detail'),
+    path('<int:document_id>/file/', views.document_file_view, name='document-file'),
     path('<int:document_id>/verify/', views.verify_document_view, name='verify-document'),
     path('search/', views.document_search_view, name='document-search'),
     path('statistics/', views.document_statistics_view, name='document-statistics'),

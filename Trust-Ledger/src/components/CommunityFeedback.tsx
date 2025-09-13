@@ -29,7 +29,7 @@ export function CommunityFeedbackComponent({ projectId, departmentId, fundFlowId
   const queryClient = useQueryClient();
 
   // Fetch feedback
-  const { data: feedback, isLoading } = useQuery({
+  const { data: feedback, isLoading, error } = useQuery({
     queryKey: ['community-feedback', projectId, departmentId, fundFlowId],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -37,21 +37,37 @@ export function CommunityFeedbackComponent({ projectId, departmentId, fundFlowId
       if (departmentId) params.append('department', departmentId);
       if (fundFlowId) params.append('fund_flow', fundFlowId);
       
-      const response = await communityFeedbackAPI.getFeedback();
-      return response.data.results;
+      console.log('Fetching feedback with params:', params.toString());
+      const response = await communityFeedbackAPI.getFeedback(params.toString());
+      console.log('Feedback response:', response);
+      return response.data.results || response.data;
     },
   });
 
+  // Log errors
+  if (error) {
+    console.error('Error fetching feedback:', error);
+  }
+
   // Create feedback mutation
   const createFeedbackMutation = useMutation({
-    mutationFn: (data: any) => communityFeedbackAPI.createFeedback(data),
-    onSuccess: () => {
+    mutationFn: (data: any) => {
+      console.log('Submitting feedback data:', data);
+      return communityFeedbackAPI.createFeedback(data);
+    },
+    onSuccess: (response) => {
+      console.log('Feedback created successfully:', response);
       queryClient.invalidateQueries({ queryKey: ['community-feedback'] });
       setIsCreateDialogOpen(false);
       toast.success('Feedback submitted successfully');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to submit feedback');
+      console.error('Error creating feedback:', error);
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.detail || 
+                          error.message || 
+                          'Failed to submit feedback';
+      toast.error(errorMessage);
     },
   });
 
@@ -83,11 +99,19 @@ export function CommunityFeedbackComponent({ projectId, departmentId, fundFlowId
     },
   });
 
-  const handleCreateFeedback = (formData: FormData) => {
+  const handleCreateFeedback = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    // Get the selected project/department/fund_flow from the form if not provided as props
+    const selectedProject = formData.get('selected_project') || projectId;
+    const selectedDepartment = formData.get('selected_department') || departmentId;
+    const selectedFundFlow = formData.get('selected_fund_flow') || fundFlowId;
+    
     const data = {
-      project: projectId || null,
-      department: departmentId || null,
-      fund_flow: fundFlowId || null,
+      project: selectedProject || null,
+      department: selectedDepartment || null,
+      fund_flow: selectedFundFlow || null,
       feedback_type: formData.get('feedback_type'),
       title: formData.get('title'),
       description: formData.get('description'),
@@ -96,7 +120,21 @@ export function CommunityFeedbackComponent({ projectId, departmentId, fundFlowId
       is_anonymous: formData.get('is_anonymous') === 'on',
     };
     
-    createFeedbackMutation.mutate(data);
+    // Validate that at least one target is specified
+    if (!selectedProject && !selectedDepartment && !selectedFundFlow) {
+      toast.error('Please specify a project, department, or fund flow context');
+      return;
+    }
+    
+    // Convert string IDs to numbers if they exist
+    const processedData = {
+      ...data,
+      project: selectedProject ? parseInt(selectedProject as string) : null,
+      department: selectedDepartment ? parseInt(selectedDepartment as string) : null,
+      fund_flow: selectedFundFlow ? parseInt(selectedFundFlow as string) : null,
+    };
+    
+    createFeedbackMutation.mutate(processedData);
   };
 
   const handleRespond = () => {
@@ -189,7 +227,43 @@ export function CommunityFeedbackComponent({ projectId, departmentId, fundFlowId
               <DialogHeader>
                 <DialogTitle>Submit Community Feedback</DialogTitle>
               </DialogHeader>
-              <form action={handleCreateFeedback} className="space-y-4">
+              <form onSubmit={handleCreateFeedback} className="space-y-4">
+                {/* Context Selection - only show if no context is provided via props */}
+                {!projectId && !departmentId && !fundFlowId && (
+                  <div className="p-4 bg-muted/50 rounded-lg">
+                    <Label className="text-sm font-medium mb-2 block">Select Context (Required)</Label>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div>
+                        <Label htmlFor="selected_project" className="text-xs">Project</Label>
+                        <Input 
+                          name="selected_project" 
+                          placeholder="Enter project ID or leave empty"
+                          className="text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="selected_department" className="text-xs">Department</Label>
+                        <Input 
+                          name="selected_department" 
+                          placeholder="Enter department ID or leave empty"
+                          className="text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="selected_fund_flow" className="text-xs">Fund Flow</Label>
+                        <Input 
+                          name="selected_fund_flow" 
+                          placeholder="Enter fund flow ID or leave empty"
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      At least one context must be specified
+                    </p>
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="feedback_type">Type</Label>
@@ -263,13 +337,13 @@ export function CommunityFeedbackComponent({ projectId, departmentId, fundFlowId
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {feedback?.length === 0 ? (
+          {!feedback || (Array.isArray(feedback) && feedback.length === 0) ? (
             <div className="text-center py-8 text-muted-foreground">
               <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No feedback yet. Be the first to share your thoughts!</p>
             </div>
           ) : (
-            feedback?.map((item) => (
+            Array.isArray(feedback) && feedback.map((item: CommunityFeedback) => (
               <div key={item.id} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">

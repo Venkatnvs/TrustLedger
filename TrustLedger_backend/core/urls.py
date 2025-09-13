@@ -34,4 +34,15 @@ urlpatterns = [
     
     # Audit Logs
     path('audit-logs/', views.AuditLogListView.as_view(), name='audit-log-list'),
+    
+    # Fund Allocations
+    path('fund-allocations/', views.FundAllocationListView.as_view(), name='fund-allocation-list'),
+    path('fund-allocations/<int:pk>/', views.FundAllocationDetailView.as_view(), name='fund-allocation-detail'),
+    
+    # Project Spending
+    path('project-spending/', views.ProjectSpendingListView.as_view(), name='project-spending-list'),
+    path('project-spending/<int:pk>/', views.ProjectSpendingDetailView.as_view(), name='project-spending-detail'),
+    
+    # Anomaly Detection
+    path('run-anomaly-detection/', views.run_anomaly_detection_view, name='run-anomaly-detection'),
 ]
