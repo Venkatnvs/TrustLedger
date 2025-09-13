@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SearchFilters } from "@/components/SearchFilters";
+import { SearchFilters, type SearchFiltersType } from "@/components/SearchFilters";
 import { useRole } from "@/hooks/useRole";
 import { 
   Search, 
@@ -20,28 +20,26 @@ import {
   Eye,
   TrendingUp
 } from "lucide-react";
+import { coreAPI } from "@/lib/api";
 
 interface Project {
-  id: string;
+  id: number;
   name: string;
   description?: string;
   status: string;
-  totalBudget: number;
-  departmentId?: string;
-  vendorId?: string;
-  startDate?: string;
-  expectedBeneficiaries?: number;
-  verificationStatus?: string;
+  budget_amount: number;
+  department?: {
+    id: number;
+    name: string;
+  };
+  vendor?: {
+    id: number;
+    name: string;
+  };
+  start_date?: string;
+  expected_beneficiaries?: number;
+  verification_status?: string;
   location?: string;
-}
-
-interface SearchFiltersType {
-  departmentId: string;
-  status: string;
-  minAmount?: number;
-  maxAmount?: number;
-  year: string;
-  verificationStatus: string;
 }
 
 export default function SearchPage() {
@@ -49,12 +47,12 @@ export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [filters, setFilters] = useState<SearchFiltersType>({
-    departmentId: "",
-    status: "",
+    departmentId: "all",
+    status: "all",
     minAmount: undefined,
     maxAmount: undefined,
-    year: "",
-    verificationStatus: ""
+    year: "all",
+    verificationStatus: "all"
   });
   const [sortBy, setSortBy] = useState("date");
   const [showFilters, setShowFilters] = useState(false);
@@ -68,22 +66,59 @@ export default function SearchPage() {
   }, [searchQuery]);
 
   const { data: searchResults, isLoading, error } = useQuery({
-    queryKey: ["/api/projects/search", debouncedQuery, filters, sortBy],
+    queryKey: ["projects-search", debouncedQuery, filters, sortBy],
     enabled: debouncedQuery.length >= 2,
     queryFn: async () => {
       const params = new URLSearchParams({
         q: debouncedQuery,
-        ...(filters.departmentId && { departmentId: filters.departmentId }),
-        ...(filters.status && { status: filters.status }),
+        ...(filters.departmentId && filters.departmentId !== "all" && { departmentId: filters.departmentId }),
+        ...(filters.status && filters.status !== "all" && { status: filters.status }),
         ...(filters.minAmount && { minAmount: filters.minAmount.toString() }),
         ...(filters.maxAmount && { maxAmount: filters.maxAmount.toString() }),
-        ...(filters.year && { year: filters.year }),
-        ...(filters.verificationStatus && { verificationStatus: filters.verificationStatus })
+        ...(filters.year && filters.year !== "all" && { year: filters.year }),
+        ...(filters.verificationStatus && filters.verificationStatus !== "all" && { verificationStatus: filters.verificationStatus })
       });
       
-      const response = await fetch(`/api/projects/search?${params}`);
-      if (!response.ok) throw new Error('Search failed');
-      return response.json();
+      const response = await coreAPI.getProjects();
+      let results = response.data.results;
+      
+      // Apply client-side filtering for now (in real app, this would be server-side)
+      if (debouncedQuery) {
+        results = results.filter((project: Project) => 
+          project.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+          project.description?.toLowerCase().includes(debouncedQuery.toLowerCase())
+        );
+      }
+      
+      if (filters.departmentId) {
+        results = results.filter((project: Project) => 
+          project.department?.id.toString() === filters.departmentId
+        );
+      }
+      
+      if (filters.status) {
+        results = results.filter((project: Project) => project.status === filters.status);
+      }
+      
+      if (filters.verificationStatus) {
+        results = results.filter((project: Project) => 
+          project.verification_status === filters.verificationStatus
+        );
+      }
+      
+      if (filters.minAmount) {
+        results = results.filter((project: Project) => 
+          project.budget_amount >= filters.minAmount!
+        );
+      }
+      
+      if (filters.maxAmount) {
+        results = results.filter((project: Project) => 
+          project.budget_amount <= filters.maxAmount!
+        );
+      }
+      
+      return results;
     }
   });
 
@@ -93,12 +128,12 @@ export default function SearchPage() {
 
   const clearAllFilters = () => {
     setFilters({
-      departmentId: "",
-      status: "",
+      departmentId: "all",
+      status: "all",
       minAmount: undefined,
       maxAmount: undefined,
-      year: "",
-      verificationStatus: ""
+      year: "all",
+      verificationStatus: "all"
     });
     setSearchQuery("");
     setDebouncedQuery("");
@@ -135,56 +170,10 @@ export default function SearchPage() {
           {/* Search Filters Sidebar */}
           <div className="lg:col-span-1">
             <div className="sticky top-24">
-              <Card className="shadow-sm" data-testid="card-search-filters">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>Search Filters</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowFilters(!showFilters)}
-                      className="lg:hidden"
-                      data-testid="button-toggle-filters"
-                    >
-                      <Filter className="w-4 h-4" />
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className={`${showFilters ? 'block' : 'hidden lg:block'}`}>
-                  <div className="space-y-6">
-                    {/* Search Input */}
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">Search Query</label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                        <Input
-                          placeholder="Search projects, vendors..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-10"
-                          data-testid="input-search-query"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Search Filters Component */}
-                    <SearchFilters
-                      filters={filters}
-                      onFiltersChange={handleFilterChange}
-                    />
-
-                    {/* Clear Filters */}
-                    <Button
-                      variant="outline"
-                      onClick={clearAllFilters}
-                      className="w-full"
-                      data-testid="button-clear-filters"
-                    >
-                      Clear All Filters
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <SearchFilters
+                filters={filters}
+                onFiltersChange={handleFilterChange}
+              />
             </div>
           </div>
 
@@ -276,12 +265,12 @@ export default function SearchPage() {
                             </h4>
                             <p className="text-sm text-muted-foreground flex items-center">
                               <Building2 className="w-4 h-4 mr-1" />
-                              Department: {project.departmentId?.slice(0, 8)}... • {project.location || 'Location not specified'}
+                              Department: {project.department?.name || 'Unknown'} • {project.location || 'Location not specified'}
                             </p>
                           </div>
                           <div className="text-right">
                             <div className="text-lg font-bold text-primary" data-testid={`result-amount-${project.id}`}>
-                              ₹{parseFloat(project.totalBudget.toString()).toLocaleString('en-IN')}
+                              ₹{parseFloat(project.budget_amount.toString()).toLocaleString('en-IN')}
                             </div>
                             <div className="flex items-center justify-end mt-1 space-x-2">
                               <Badge 
@@ -290,12 +279,12 @@ export default function SearchPage() {
                               >
                                 {project.status}
                               </Badge>
-                              {project.verificationStatus && (
+                              {project.verification_status && (
                                 <Badge 
                                   variant="outline" 
-                                  className={`text-xs ${getVerificationColor(project.verificationStatus)}`}
+                                  className={`text-xs ${getVerificationColor(project.verification_status)}`}
                                 >
-                                  {project.verificationStatus.replace('_', ' ')}
+                                  {project.verification_status.replace('_', ' ')}
                                 </Badge>
                               )}
                             </div>
@@ -310,15 +299,15 @@ export default function SearchPage() {
                           <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                             <span className="flex items-center">
                               <Calendar className="w-3 h-3 mr-1" />
-                              {project.startDate ? new Date(project.startDate).toLocaleDateString('en-IN') : 'No start date'}
+                              {project.start_date ? new Date(project.start_date).toLocaleDateString('en-IN') : 'No start date'}
                             </span>
                             <span className="flex items-center">
                               <Building2 className="w-3 h-3 mr-1" />
-                              Vendor ID: {project.vendorId?.slice(0, 8) || 'TBD'}...
+                              Vendor: {project.vendor?.name || 'TBD'}
                             </span>
                             <span className="flex items-center">
                               <Users className="w-3 h-3 mr-1" />
-                              {project.expectedBeneficiaries || 0} beneficiaries
+                              {project.expected_beneficiaries || 0} beneficiaries
                             </span>
                           </div>
                           <div className="flex items-center space-x-2">

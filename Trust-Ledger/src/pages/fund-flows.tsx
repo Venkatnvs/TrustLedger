@@ -8,23 +8,29 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { FundFlowDiagram } from "@/components/FundFlowDiagram";
 import { TimelineTracking } from "@/components/TimelineTracking";
+import { CommunityFeedbackComponent } from "@/components/CommunityFeedback";
 import { useRole } from "@/hooks/useRole";
 import { Search, Filter, Download, Eye, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { coreAPI, fundFlowsAPI } from "@/lib/api";
 
 interface FundFlow {
-  id: string;
-  fromEntity: string;
-  toEntity: string;
+  id: number;
+  source_name: string;
+  target_name: string;
   amount: number;
-  purpose?: string;
+  description?: string;
   status: string;
-  createdAt?: string;
-  transactionHash?: string;
-  verificationStatus?: string;
+  transaction_date?: string;
+  created_at?: string;
+  verified_by?: {
+    id: number;
+    username: string;
+  };
+  verified_at?: string;
 }
 
 interface Project {
-  id: string;
+  id: number;
   name: string;
 }
 
@@ -35,20 +41,35 @@ export default function FundFlows() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: projects, isLoading: projectsLoading } = useQuery({
-    queryKey: ["/api/projects"],
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const response = await coreAPI.getProjects();
+      return response.data.results;
+    },
   });
 
   const { data: fundFlows, isLoading: flowsLoading, error } = useQuery({
-    queryKey: ["/api/fund-flows", selectedProject === "all" ? undefined : selectedProject],
+    queryKey: ["fund-flows", selectedProject === "all" ? undefined : selectedProject],
+    queryFn: async () => {
+      const response = await fundFlowsAPI.getFundFlows();
+      return response.data.results;
+    },
   });
 
   const filteredFlows = fundFlows?.filter((flow: FundFlow) => {
+    // Skip flows with missing essential data
+    if (!flow.source_name) {
+      console.warn('Fund flow missing source_name:', flow);
+      return false;
+    }
+    
     const matchesStatus = statusFilter === "all" || flow.status === statusFilter;
     const matchesSearch = !searchQuery || 
-      flow.fromEntity.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      flow.toEntity.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      flow.purpose?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
+      flow.source_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      flow.target_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      flow.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesProject = selectedProject === "all" || flow.target_name?.toLowerCase().includes(selectedProject.toLowerCase());
+    return matchesStatus && matchesSearch && matchesProject;
   }) || [];
 
   const getStatusIcon = (status: string) => {
@@ -81,6 +102,18 @@ export default function FundFlows() {
     );
   }
 
+  if (flowsLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Loading Fund Flows</h2>
+          <p className="text-muted-foreground">Please wait while we fetch the data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-background" data-testid="page-fund-flows">
       <div className="container mx-auto px-4 py-8">
@@ -97,6 +130,11 @@ export default function FundFlows() {
         {/* Timeline Tracking */}
         <div className="mb-8">
           <TimelineTracking />
+        </div>
+
+        {/* Community Feedback */}
+        <div className="mb-8">
+          <CommunityFeedbackComponent />
         </div>
 
         {/* Fund Flow List */}
@@ -189,10 +227,10 @@ export default function FundFlows() {
                         </div>
                         <div>
                           <h4 className="font-medium text-foreground">
-                            {flow.fromEntity} → {flow.toEntity}
+                            {flow.source_name || 'Unknown Source'} → {flow.target_name || 'Unknown'}
                           </h4>
                           <p className="text-sm text-muted-foreground">
-                            {flow.purpose || "No purpose specified"}
+                            {flow.description || "No description specified"}
                           </p>
                         </div>
                       </div>
@@ -213,21 +251,21 @@ export default function FundFlows() {
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
                       <div className="flex items-center space-x-4">
                         <span data-testid={`flow-date-${flow.id}`}>
-                          {flow.createdAt ? new Date(flow.createdAt).toLocaleDateString('en-IN') : 'No date'}
+                          {flow.created_at ? new Date(flow.created_at).toLocaleDateString('en-IN') : 'No date'}
                         </span>
-                        {flow.transactionHash && (
+                        {flow.transaction_hash && (
                           <Badge variant="secondary" className="text-xs">
-                            Blockchain: {flow.transactionHash.slice(0, 8)}...
+                            Blockchain: {flow.transaction_hash.slice(0, 8)}...
                           </Badge>
                         )}
-                        {flow.verificationStatus && (
+                        {flow.verification_status && (
                           <Badge 
                             variant="outline" 
-                            className={`text-xs ${flow.verificationStatus === 'verified' ? 'text-verified border-verified' : 
-                              flow.verificationStatus === 'under_review' ? 'text-warning border-warning' : 
+                            className={`text-xs ${flow.verification_status === 'verified' ? 'text-verified border-verified' : 
+                              flow.verification_status === 'under_review' ? 'text-warning border-warning' : 
                               'text-anomaly border-anomaly'}`}
                           >
-                            {flow.verificationStatus.replace('_', ' ')}
+                            {flow.verification_status.replace('_', ' ')}
                           </Badge>
                         )}
                       </div>

@@ -18,7 +18,20 @@ urlpatterns = [
     path('impact-metrics/<int:metric_id>/verify/', views.verify_impact_metric_view, name='verify-impact-metric'),
     
     # Analytics
-    path('dashboard/metrics/', views.dashboard_metrics_view, name='dashboard-metrics'),
+    path('dashboard/metrics/', views.enhanced_dashboard_metrics_view, name='dashboard-metrics'),
     path('project-status-summary/', views.project_status_summary_view, name='project-status-summary'),
     path('department-performance/', views.department_performance_view, name='department-performance'),
+    
+    # Community Feedback
+    path('community-feedback/', views.CommunityFeedbackListView.as_view(), name='community-feedback-list'),
+    path('community-feedback/<int:pk>/', views.CommunityFeedbackDetailView.as_view(), name='community-feedback-detail'),
+    path('community-feedback/<int:feedback_id>/respond/', views.respond_to_feedback_view, name='respond-to-feedback'),
+    path('community-feedback/<int:feedback_id>/update-status/', views.update_feedback_status_view, name='update-feedback-status'),
+    
+    # Budget Versions
+    path('budget-versions/', views.BudgetVersionListView.as_view(), name='budget-version-list'),
+    path('projects/<int:project_id>/create-budget-version/', views.create_budget_version_view, name='create-budget-version'),
+    
+    # Audit Logs
+    path('audit-logs/', views.AuditLogListView.as_view(), name='audit-log-list'),
 ]

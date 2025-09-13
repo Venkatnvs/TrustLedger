@@ -79,6 +79,8 @@ export const authAPI = {
   
   getProfile: () => api.get('/auth/profile/'),
   
+  updateProfile: (id: number, data: any) => api.patch(`/auth/users/${id}/`, data),
+  
   changePassword: (passwords: {
     old_password: string;
     new_password: string;
@@ -154,6 +156,35 @@ export const documentsAPI = {
   getDocumentVerification: (id: number) => api.get(`/documents/verifications/${id}/`),
 };
 
+// Community Feedback API
+export const communityFeedbackAPI = {
+  getFeedback: () => api.get('/core/community-feedback/'),
+  getFeedbackById: (id: number) => api.get(`/core/community-feedback/${id}/`),
+  createFeedback: (data: any) => api.post('/core/community-feedback/', data),
+  updateFeedback: (id: number, data: any) => api.patch(`/core/community-feedback/${id}/`, data),
+  deleteFeedback: (id: number) => api.delete(`/core/community-feedback/${id}/`),
+  respondToFeedback: (id: number, data: { response: string }) => api.post(`/core/community-feedback/${id}/respond/`, data),
+  updateFeedbackStatus: (id: number, data: { status: string }) => api.patch(`/core/community-feedback/${id}/update-status/`, data),
+};
+
+// Budget Version API
+export const budgetVersionAPI = {
+  getBudgetVersions: () => api.get('/core/budget-versions/'),
+  createBudgetVersion: (projectId: number, data: { budget_amount: number; change_reason: string }) => 
+    api.post(`/core/projects/${projectId}/create-budget-version/`, data),
+};
+
+// Audit Log API
+export const auditLogAPI = {
+  getAuditLogs: () => api.get('/core/audit-logs/'),
+};
+
+// Search API
+export const searchAPI = {
+  searchTransactions: (params: any) => api.get('/fund-flows/search/transactions/', { params }),
+  searchProjects: (params: any) => api.get('/fund-flows/search/projects/', { params }),
+};
+
 // Analytics API
 export const analyticsAPI = {
   getAnalyticsDashboard: () => api.get('/analytics/dashboard/'),
@@ -163,8 +194,6 @@ export const analyticsAPI = {
   getSearchFilter: (id: number) => api.get(`/analytics/search-filters/${id}/`),
   updateSearchFilter: (id: number, data: any) => api.patch(`/analytics/search-filters/${id}/`, data),
   deleteSearchFilter: (id: number) => api.delete(`/analytics/search-filters/${id}/`),
-  
-  getAuditLogs: () => api.get('/analytics/audit-logs/'),
   
   getReports: () => api.get('/analytics/reports/'),
   createReport: (data: any) => api.post('/analytics/reports/', data),
@@ -179,6 +208,19 @@ export const analyticsAPI = {
   getSystemConfigurations: () => api.get('/analytics/configurations/'),
   getSystemConfiguration: (id: number) => api.get(`/analytics/configurations/${id}/`),
   updateSystemConfiguration: (id: number, data: any) => api.patch(`/analytics/configurations/${id}/`, data),
+};
+
+// AI Services API
+export const aiAPI = {
+  chat: (data: {
+    query: string;
+    context?: any;
+    conversation_history?: Array<{role: string, content: string}>;
+  }) => api.post('/ai/chat/', data),
+  
+  getCharacters: () => api.get('/ai/characters/'),
+  
+  getHealth: () => api.get('/ai/health/'),
 };
 
 export default api;

@@ -109,10 +109,10 @@ export function FundFlowDiagram() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "verified": return "bg-verified";
-      case "under_review": return "bg-warning";
-      case "anomaly": return "bg-anomaly";
-      default: return "bg-muted";
+      case "verified": return "bg-green-500";
+      case "under_review": return "bg-yellow-500";
+      case "anomaly": return "bg-red-500";
+      default: return "bg-gray-500";
     }
   };
 
@@ -182,7 +182,7 @@ export function FundFlowDiagram() {
         </div>
 
         {/* Diagram Container */}
-        <div className="relative bg-gradient-to-r from-muted/30 to-background rounded-lg p-8 min-h-96 overflow-hidden" data-testid="diagram-container">
+        <div className="relative bg-gradient-to-br from-blue-50 via-white to-green-50 rounded-xl p-8 min-h-96 overflow-hidden border border-gray-200 shadow-inner" data-testid="diagram-container">
           {isLoading ? (
             <div className="space-y-4">
               <Skeleton className="h-8 w-48" />
@@ -208,35 +208,48 @@ export function FundFlowDiagram() {
             <>
               {/* Fund Source Nodes */}
               <div className="absolute left-4 top-1/2 transform -translate-y-1/2 space-y-4">
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">Fund Sources</h4>
-                {nodes.filter(node => node.type === "source").map((node: FundFlowNode) => (
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                  Fund Sources
+                </h4>
+                {nodes.filter((node: FundFlowNode) => node.type === "source").map((node: FundFlowNode) => (
                   <div
                     key={node.id}
-                    className={`sankey-node ${getStatusColor(node.status)} text-white px-4 py-3 rounded-lg shadow-lg cursor-pointer transition-all hover:scale-105`}
+                    className={`${getStatusColor(node.status)} text-white px-5 py-4 rounded-xl shadow-lg cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl border-2 border-white/20 backdrop-blur-sm`}
                     onClick={() => handleNodeClick(node)}
                     data-testid={`node-source-${node.id}`}
+                    style={{
+                      background: `linear-gradient(135deg, ${getStatusColor(node.status).replace('bg-', '') === 'green-500' ? '#10b981' : getStatusColor(node.status).replace('bg-', '') === 'yellow-500' ? '#f59e0b' : '#ef4444'}, ${getStatusColor(node.status).replace('bg-', '') === 'green-500' ? '#059669' : getStatusColor(node.status).replace('bg-', '') === 'yellow-500' ? '#d97706' : '#dc2626'})`
+                    }}
                   >
-                    <div className="text-sm font-medium">{node.name}</div>
-                    <div className="text-xs opacity-90">₹{(node.amount / 100000).toFixed(0)}L</div>
+                    <div className="text-sm font-semibold mb-1">{node.name}</div>
+                    <div className="text-xs opacity-90 font-medium">₹{(node.amount / 100000).toFixed(0)}L</div>
+                    <div className="text-xs opacity-75 mt-1 capitalize">{node.status.replace('_', ' ')}</div>
                   </div>
                 ))}
               </div>
 
               {/* Department Nodes */}
               <div className="absolute left-1/3 top-1/2 transform -translate-y-1/2 space-y-6">
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">Departments</h4>
-                {nodes.filter(node => node.type === "department").map((node: FundFlowNode) => (
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
+                  Departments
+                </h4>
+                {nodes.filter((node: FundFlowNode) => node.type === "department").map((node: FundFlowNode) => (
                   <div
                     key={node.id}
-                    className={`sankey-node ${getStatusColor(node.status)} text-white px-4 py-3 rounded-lg shadow-lg cursor-pointer transition-all hover:scale-105`}
+                    className={`${getStatusColor(node.status)} text-white px-5 py-4 rounded-xl shadow-lg cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl border-2 border-white/20 backdrop-blur-sm`}
                     onClick={() => handleNodeClick(node)}
                     data-testid={`node-department-${node.id}`}
+                    style={{
+                      background: `linear-gradient(135deg, ${getStatusColor(node.status).replace('bg-', '') === 'green-500' ? '#10b981' : getStatusColor(node.status).replace('bg-', '') === 'yellow-500' ? '#f59e0b' : '#ef4444'}, ${getStatusColor(node.status).replace('bg-', '') === 'green-500' ? '#059669' : getStatusColor(node.status).replace('bg-', '') === 'yellow-500' ? '#d97706' : '#dc2626'})`
+                    }}
                   >
-                    <div className="text-sm font-medium">{node.name}</div>
-                    <div className="text-xs opacity-90">₹{(node.amount / 100000).toFixed(0)}L</div>
-                    <div className="flex items-center mt-1">
-                      <span className={`w-2 h-2 ${getStatusColor(node.status)} rounded-full mr-1`}></span>
-                      <span className="text-xs capitalize">{node.status.replace('_', ' ')}</span>
+                    <div className="text-sm font-semibold mb-1">{node.name}</div>
+                    <div className="text-xs opacity-90 font-medium">₹{(node.amount / 100000).toFixed(0)}L</div>
+                    <div className="flex items-center mt-2">
+                      <span className={`w-2 h-2 ${getStatusColor(node.status)} rounded-full mr-2`}></span>
+                      <span className="text-xs capitalize opacity-75">{node.status.replace('_', ' ')}</span>
                     </div>
                   </div>
                 ))}
@@ -244,35 +257,53 @@ export function FundFlowDiagram() {
 
               {/* Project/Vendor Nodes */}
               <div className="absolute right-4 top-1/2 transform -translate-y-1/2 space-y-4">
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">Projects</h4>
-                {nodes.filter(node => node.type === "project").map((node: FundFlowNode    ) => (
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full mr-2"></div>
+                  Projects
+                </h4>
+                {nodes.filter((node: FundFlowNode) => node.type === "project").map((node: FundFlowNode) => (
                   <div
                     key={node.id}
-                    className={`sankey-node ${getStatusColor(node.status)} text-white px-4 py-3 rounded-lg shadow-lg cursor-pointer transition-all hover:scale-105`}
+                    className={`${getStatusColor(node.status)} text-white px-5 py-4 rounded-xl shadow-lg cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl border-2 border-white/20 backdrop-blur-sm`}
                     onClick={() => handleNodeClick(node)}
                     data-testid={`node-project-${node.id}`}
+                    style={{
+                      background: `linear-gradient(135deg, ${getStatusColor(node.status).replace('bg-', '') === 'green-500' ? '#10b981' : getStatusColor(node.status).replace('bg-', '') === 'yellow-500' ? '#f59e0b' : '#ef4444'}, ${getStatusColor(node.status).replace('bg-', '') === 'green-500' ? '#059669' : getStatusColor(node.status).replace('bg-', '') === 'yellow-500' ? '#d97706' : '#dc2626'})`
+                    }}
                   >
-                    <div className="text-sm font-medium">{node.name}</div>
-                    <div className="text-xs opacity-90">₹{(node.amount / 100000).toFixed(0)}L</div>
+                    <div className="text-sm font-semibold mb-1">{node.name}</div>
+                    <div className="text-xs opacity-90 font-medium">₹{(node.amount / 100000).toFixed(0)}L</div>
+                    <div className="text-xs opacity-75 mt-1 capitalize">{node.status.replace('_', ' ')}</div>
                   </div>
                 ))}
               </div>
 
               {/* Connection Lines */}
-              <svg className="absolute inset-0 pointer-events-none w-full h-full">
+              <svg className="absolute inset-0 pointer-events-none w-full h-full" viewBox="0 0 800 500">
                 <defs>
-                  <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                    <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" className="text-primary/40" />
+                  <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#10b981" />
+                  </marker>
+                  <marker id="arrowhead-yellow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#f59e0b" />
+                  </marker>
+                  <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#ef4444" />
+                  </marker>
+                  <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
                   </marker>
                 </defs>
-                {/* Sample flow lines - in production these would be dynamically generated */}
-                <path d="M 150 180 Q 225 180 300 180" stroke="currentColor" strokeWidth="3" fill="none" className="text-verified/40" markerEnd="url(#arrowhead)" />
-                <path d="M 150 250 Q 225 225 300 200" stroke="currentColor" strokeWidth="2" fill="none" className="text-primary/40" markerEnd="url(#arrowhead)" />
-                <path d="M 150 320 Q 225 285 300 250" stroke="currentColor" strokeWidth="2" fill="none" className="text-accent/40" markerEnd="url(#arrowhead)" />
-                <path d="M 400 180 Q 475 160 550 140" stroke="currentColor" strokeWidth="2" fill="none" className="text-verified/40" markerEnd="url(#arrowhead)" />
-                <path d="M 400 200 Q 475 190 550 180" stroke="currentColor" strokeWidth="2" fill="none" className="text-primary/40" markerEnd="url(#arrowhead)" />
-                <path d="M 400 250 Q 475 275 550 300" stroke="currentColor" strokeWidth="2" fill="none" className="text-warning/40" markerEnd="url(#arrowhead)" />
-                <path d="M 400 320 Q 475 360 550 400" stroke="currentColor" strokeWidth="2" fill="none" className="text-anomaly/40" markerEnd="url(#arrowhead)" />
+                {/* Source to Department connections */}
+                <path d="M 120 180 Q 200 180 280 180" stroke="#10b981" strokeWidth="3" fill="none" markerEnd="url(#arrowhead-green)" />
+                <path d="M 120 250 Q 200 230 280 200" stroke="#f59e0b" strokeWidth="2" fill="none" markerEnd="url(#arrowhead-yellow)" />
+                <path d="M 120 320 Q 200 300 280 250" stroke="#3b82f6" strokeWidth="2" fill="none" markerEnd="url(#arrowhead-blue)" />
+                
+                {/* Department to Project connections */}
+                <path d="M 380 180 Q 450 160 530 140" stroke="#10b981" strokeWidth="2" fill="none" markerEnd="url(#arrowhead-green)" />
+                <path d="M 380 200 Q 450 190 530 180" stroke="#10b981" strokeWidth="2" fill="none" markerEnd="url(#arrowhead-green)" />
+                <path d="M 380 250 Q 450 280 530 300" stroke="#f59e0b" strokeWidth="2" fill="none" markerEnd="url(#arrowhead-yellow)" />
+                <path d="M 380 320 Q 450 360 530 400" stroke="#ef4444" strokeWidth="2" fill="none" markerEnd="url(#arrowhead-red)" />
               </svg>
 
               {/* Legend */}
@@ -280,15 +311,15 @@ export function FundFlowDiagram() {
                 <h4 className="text-sm font-medium mb-2">Trust Indicators</h4>
                 <div className="space-y-1 text-xs">
                   <div className="flex items-center">
-                    <span className="w-3 h-3 bg-verified rounded-full mr-2"></span>
+                    <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
                     <span>Verified & Complete</span>
                   </div>
                   <div className="flex items-center">
-                    <span className="w-3 h-3 bg-warning rounded-full mr-2"></span>
+                    <span className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
                     <span>Under Review</span>
                   </div>
                   <div className="flex items-center">
-                    <span className="w-3 h-3 bg-anomaly rounded-full mr-2"></span>
+                    <span className="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
                     <span>Anomaly Detected</span>
                   </div>
                 </div>
@@ -298,34 +329,43 @@ export function FundFlowDiagram() {
         </div>
 
         {/* Flow Details Panel */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-muted/30 rounded-lg p-4" data-testid="panel-selected-flow">
-            <h4 className="font-medium text-foreground mb-2">Selected Flow</h4>
-            <p className="text-sm text-muted-foreground">
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200 shadow-sm" data-testid="panel-selected-flow">
+            <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+              <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+              Selected Flow
+            </h4>
+            <p className="text-sm text-gray-600">
               {selectedNode 
                 ? `${selectedNode.name} - ₹${(selectedNode.amount / 100000).toFixed(0)}L`
                 : "Click on any node to see detailed fund flow information"
               }
             </p>
           </div>
-          <div className="bg-muted/30 rounded-lg p-4" data-testid="panel-amount">
-            <h4 className="font-medium text-foreground mb-2">Amount</h4>
-            <p className="text-lg font-bold text-primary">
+          <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-6 border border-green-200 shadow-sm" data-testid="panel-amount">
+            <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+              Amount
+            </h4>
+            <p className="text-2xl font-bold text-green-700">
               {selectedNode ? `₹${(selectedNode.amount / 100000).toFixed(0)}L` : "-"}
             </p>
           </div>
-          <div className="bg-muted/30 rounded-lg p-4" data-testid="panel-status">
-            <h4 className="font-medium text-foreground mb-2">Status</h4>
+          <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200 shadow-sm" data-testid="panel-status">
+            <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+              <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
+              Status
+            </h4>
             <div className="flex items-center">
               {selectedNode ? (
                 <>
-                  <span className={`w-3 h-3 ${getStatusColor(selectedNode.status)} rounded-full mr-2`}></span>
-                  <span className="text-sm capitalize">{selectedNode.status.replace('_', ' ')}</span>
+                  <span className={`w-4 h-4 ${getStatusColor(selectedNode.status)} rounded-full mr-3 shadow-sm`}></span>
+                  <span className="text-sm font-medium capitalize text-gray-700">{selectedNode.status.replace('_', ' ')}</span>
                 </>
               ) : (
                 <>
-                  <span className="w-3 h-3 bg-muted rounded-full mr-2"></span>
-                  <span className="text-sm text-muted-foreground">Select flow to view status</span>
+                  <span className="w-4 h-4 bg-gray-400 rounded-full mr-3"></span>
+                  <span className="text-sm text-gray-500">Select flow to view status</span>
                 </>
               )}
             </div>

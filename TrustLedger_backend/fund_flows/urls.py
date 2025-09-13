@@ -23,4 +23,8 @@ urlpatterns = [
     path('trust-indicators/', views.TrustIndicatorListView.as_view(), name='trust-indicator-list'),
     path('trust-indicators/<int:pk>/', views.TrustIndicatorDetailView.as_view(), name='trust-indicator-detail'),
     path('trust-indicators/summary/', views.trust_indicators_summary_view, name='trust-indicators-summary'),
+    
+    # Search
+    path('search/transactions/', views.search_transactions_view, name='search-transactions'),
+    path('search/projects/', views.search_projects_view, name='search-projects'),
 ]

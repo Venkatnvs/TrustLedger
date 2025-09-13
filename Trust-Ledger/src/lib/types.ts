@@ -1,8 +1,8 @@
 export interface DashboardMetrics {
-  totalBudget: number;
-  utilizedFunds: number;
-  activeProjects: number;
-  anomaliesCount: number;
+  total_budget: number;
+  utilized_funds: number;
+  active_projects: number;
+  anomalies_count: number;
 }
 
 export interface FundFlowNode {
@@ -22,12 +22,14 @@ export interface FundFlowLink {
 }
 
 export interface SearchFilters {
-  departmentId: string;
-  status: string;
-  minAmount?: number;
-  maxAmount?: number;
-  year: string;
-  verificationStatus: string;
+  department_id?: string;
+  status?: string;
+  min_amount?: number;
+  max_amount?: number;
+  year?: string;
+  verification_status?: string;
+  min_budget?: number;
+  max_budget?: number;
 }
 
 export interface ImpactMetric {
@@ -78,4 +80,86 @@ export interface Department {
   budget: number;
   spent: number;
   projects: Project[];
+}
+
+export interface CommunityFeedback {
+  id: string;
+  user: string;
+  user_name: string;
+  project?: string;
+  project_name?: string;
+  department?: string;
+  department_name?: string;
+  fund_flow?: string;
+  feedback_type: 'question' | 'suggestion' | 'concern' | 'complaint' | 'praise';
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  is_public: boolean;
+  is_anonymous: boolean;
+  status: 'pending' | 'under_review' | 'responded' | 'resolved' | 'closed';
+  response?: string;
+  responded_by?: string;
+  responded_by_name?: string;
+  responded_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BudgetVersion {
+  id: string;
+  project: string;
+  project_name: string;
+  version_number: number;
+  budget_amount: number;
+  change_reason: string;
+  changed_by: string;
+  changed_by_name: string;
+  changed_at: string;
+  previous_version?: string;
+}
+
+export interface AuditLog {
+  id: string;
+  user: string;
+  user_name: string;
+  action: 'create' | 'update' | 'delete' | 'verify' | 'flag' | 'resolve';
+  model_name: string;
+  object_id: number;
+  object_repr: string;
+  changes: Record<string, any>;
+  ip_address: string;
+  user_agent: string;
+  timestamp: string;
+}
+
+export interface Anomaly {
+  id: string;
+  fund_flow: string;
+  description: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  detected_by: string;
+  detected_at: string;
+  resolved: boolean;
+  resolved_by?: string;
+  resolved_at?: string;
+  resolution_notes?: string;
+}
+
+export interface TrustIndicator {
+  id: string;
+  department: string;
+  transparency_score: number;
+  community_oversight_score: number;
+  response_time_score: number;
+  document_completeness_score: number;
+  overall_score: number;
+  calculated_at: string;
+}
+
+export interface SearchResults<T> {
+  results: T[];
+  count: number;
+  query: string;
+  filters: SearchFilters;
 }

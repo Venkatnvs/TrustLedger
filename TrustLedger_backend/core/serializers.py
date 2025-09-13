@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Department, Project, ImpactMetric
+from .models import Department, Project, ImpactMetric, CommunityFeedback, BudgetVersion, AuditLog
 from accounts.serializers import UserListSerializer
 
 
@@ -61,15 +61,18 @@ class ProjectSerializer(serializers.ModelSerializer):
     manager_name = serializers.CharField(source='manager.get_full_name', read_only=True)
     remaining_budget = serializers.ReadOnlyField()
     completion_percentage = serializers.ReadOnlyField()
+    is_overdue = serializers.ReadOnlyField()
+    days_remaining = serializers.ReadOnlyField()
     impact_metrics = ImpactMetricSerializer(many=True, read_only=True)
     
     class Meta:
         model = Project
         fields = [
-            'id', 'name', 'description', 'budget', 'spent', 'status',
-            'start_date', 'end_date', 'department', 'department_name',
-            'manager', 'manager_name', 'remaining_budget', 'completion_percentage',
-            'impact_metrics', 'created_at', 'updated_at'
+            'id', 'name', 'description', 'budget', 'spent', 'status', 'priority',
+            'start_date', 'end_date', 'expected_beneficiaries', 'location',
+            'department', 'department_name', 'manager', 'manager_name', 
+            'remaining_budget', 'completion_percentage', 'is_overdue', 'days_remaining',
+            'is_public', 'impact_metrics', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
     
@@ -142,3 +145,96 @@ class ProjectUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Spent amount cannot exceed budget.")
         
         return attrs
+
+
+class CommunityFeedbackSerializer(serializers.ModelSerializer):
+    """Serializer for CommunityFeedback model"""
+    user_name = serializers.CharField(source='user.get_full_name', read_only=True)
+    project_name = serializers.CharField(source='project.name', read_only=True)
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    responded_by_name = serializers.CharField(source='responded_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = CommunityFeedback
+        fields = [
+            'id', 'user', 'user_name', 'project', 'project_name', 'department', 'department_name',
+            'fund_flow', 'feedback_type', 'title', 'description', 'priority', 'is_public',
+            'is_anonymous', 'status', 'response', 'responded_by', 'responded_by_name',
+            'responded_at', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'responded_at']
+    
+    def validate(self, attrs):
+        """Validate feedback data"""
+        project = attrs.get('project')
+        department = attrs.get('department')
+        fund_flow = attrs.get('fund_flow')
+        
+        # At least one target must be specified
+        if not any([project, department, fund_flow]):
+            raise serializers.ValidationError("At least one target (project, department, or fund flow) must be specified.")
+        
+        return attrs
+
+
+class CommunityFeedbackCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating community feedback"""
+    
+    class Meta:
+        model = CommunityFeedback
+        fields = [
+            'project', 'department', 'fund_flow', 'feedback_type', 'title',
+            'description', 'priority', 'is_public', 'is_anonymous'
+        ]
+    
+    def validate(self, attrs):
+        """Validate feedback creation data"""
+        project = attrs.get('project')
+        department = attrs.get('department')
+        fund_flow = attrs.get('fund_flow')
+        
+        # At least one target must be specified
+        if not any([project, department, fund_flow]):
+            raise serializers.ValidationError("At least one target (project, department, or fund flow) must be specified.")
+        
+        return attrs
+
+
+class BudgetVersionSerializer(serializers.ModelSerializer):
+    """Serializer for BudgetVersion model"""
+    changed_by_name = serializers.CharField(source='changed_by.get_full_name', read_only=True)
+    project_name = serializers.CharField(source='project.name', read_only=True)
+    
+    class Meta:
+        model = BudgetVersion
+        fields = [
+            'id', 'project', 'project_name', 'version_number', 'budget_amount',
+            'change_reason', 'changed_by', 'changed_by_name', 'changed_at',
+            'previous_version'
+        ]
+        read_only_fields = ['changed_at']
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    """Serializer for AuditLog model"""
+    user_name = serializers.CharField(source='user.get_full_name', read_only=True)
+    
+    class Meta:
+        model = AuditLog
+        fields = [
+            'id', 'user', 'user_name', 'action', 'model_name', 'object_id',
+            'object_repr', 'changes', 'ip_address', 'user_agent', 'timestamp'
+        ]
+        read_only_fields = ['timestamp']
+
+
+class DashboardMetricsSerializer(serializers.Serializer):
+    """Serializer for dashboard metrics"""
+    total_budget = serializers.DecimalField(max_digits=15, decimal_places=2)
+    utilized_funds = serializers.DecimalField(max_digits=15, decimal_places=2)
+    active_projects = serializers.IntegerField()
+    anomalies_count = serializers.IntegerField()
+    departments_count = serializers.IntegerField()
+    trust_score = serializers.IntegerField()
+    community_feedback_count = serializers.IntegerField()
+    pending_verifications = serializers.IntegerField()

@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.db.models import Q, Sum, Count
 from django.utils import timezone
+from core.services import SearchService
 from .models import FundSource, FundFlow, Anomaly, TrustIndicator
 from .serializers import (
     FundSourceSerializer, FundFlowSerializer, FundFlowListSerializer,
@@ -309,3 +310,124 @@ def flag_anomaly_view(request, flow_id):
         }, status=status.HTTP_201_CREATED)
     except FundFlow.DoesNotExist:
         return Response({'error': 'Fund flow not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def search_transactions_view(request):
+    """View for searching transactions with advanced filters"""
+    query = request.GET.get('q', '')
+    filters = {
+        'department_id': request.GET.get('department_id'),
+        'status': request.GET.get('status'),
+        'min_amount': request.GET.get('min_amount'),
+        'max_amount': request.GET.get('max_amount'),
+        'year': request.GET.get('year'),
+        'verification_status': request.GET.get('verification_status'),
+    }
+    
+    # Remove None values
+    filters = {k: v for k, v in filters.items() if v is not None}
+    
+    # Convert numeric filters
+    if filters.get('min_amount'):
+        try:
+            filters['min_amount'] = float(filters['min_amount'])
+        except ValueError:
+            filters['min_amount'] = None
+    
+    if filters.get('max_amount'):
+        try:
+            filters['max_amount'] = float(filters['max_amount'])
+        except ValueError:
+            filters['max_amount'] = None
+    
+    if filters.get('year'):
+        try:
+            filters['year'] = int(filters['year'])
+        except ValueError:
+            filters['year'] = None
+    
+    # Remove None values again after conversion
+    filters = {k: v for k, v in filters.items() if v is not None}
+    
+    # Search transactions
+    transactions = SearchService.search_transactions(query, filters)
+    
+    # Apply user permissions
+    user = request.user
+    if not (user.is_admin or user.is_auditor):
+        if user.is_department_head and user.department:
+            transactions = transactions.filter(
+                Q(target_department=user.department) | 
+                Q(target_project__department=user.department)
+            )
+        else:
+            transactions = transactions.filter(
+                Q(target_project__manager=user) |
+                Q(target_department__head=user)
+            )
+    
+    # Serialize results
+    serializer = FundFlowListSerializer(transactions, many=True)
+    
+    return Response({
+        'results': serializer.data,
+        'count': transactions.count(),
+        'query': query,
+        'filters': filters
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def search_projects_view(request):
+    """View for searching projects with advanced filters"""
+    query = request.GET.get('q', '')
+    filters = {
+        'department_id': request.GET.get('department_id'),
+        'status': request.GET.get('status'),
+        'min_budget': request.GET.get('min_budget'),
+        'max_budget': request.GET.get('max_budget'),
+    }
+    
+    # Remove None values
+    filters = {k: v for k, v in filters.items() if v is not None}
+    
+    # Convert numeric filters
+    if filters.get('min_budget'):
+        try:
+            filters['min_budget'] = float(filters['min_budget'])
+        except ValueError:
+            filters['min_budget'] = None
+    
+    if filters.get('max_budget'):
+        try:
+            filters['max_budget'] = float(filters['max_budget'])
+        except ValueError:
+            filters['max_budget'] = None
+    
+    # Remove None values again after conversion
+    filters = {k: v for k, v in filters.items() if v is not None}
+    
+    # Search projects
+    projects = SearchService.search_projects(query, filters)
+    
+    # Apply user permissions
+    user = request.user
+    if not (user.is_admin or user.is_auditor):
+        if user.is_department_head and user.department:
+            projects = projects.filter(department=user.department)
+        else:
+            projects = projects.filter(manager=user)
+    
+    # Serialize results
+    from core.serializers import ProjectListSerializer
+    serializer = ProjectListSerializer(projects, many=True)
+    
+    return Response({
+        'results': serializer.data,
+        'count': projects.count(),
+        'query': query,
+        'filters': filters
+    }, status=status.HTTP_200_OK)

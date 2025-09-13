@@ -48,12 +48,13 @@ class SearchFilterCreateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class AuditLogSerializer(serializers.ModelSerializer):
-    """Serializer for AuditLog model"""
+class AnalyticsAuditLogSerializer(serializers.ModelSerializer):
+    """Serializer for AuditLog model in analytics app"""
     user_name = serializers.CharField(source='user.get_full_name', read_only=True)
     
     class Meta:
         model = AuditLog
+        ref_name = 'AnalyticsAuditLog'
         fields = [
             'id', 'user', 'user_name', 'action', 'model_name', 'object_id',
             'object_repr', 'changes', 'ip_address', 'user_agent', 'timestamp'

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { coreAPI, documentsAPI } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,14 +21,26 @@ import {
 export function TrustIndicators() {
   const { data: projects, isLoading: projectsLoading } = useQuery({
     queryKey: ["/api/projects"],
+    queryFn: async () => {
+      const response = await coreAPI.getProjects();
+      return response.data.results;
+    },
   });
 
   const { data: documents, isLoading: documentsLoading } = useQuery({
     queryKey: ["/api/documents"],
+    queryFn: async () => {
+      const response = await documentsAPI.getDocuments();
+      return response.data.results;
+    },
   });
 
   const { data: anomalies, isLoading: anomaliesLoading } = useQuery({
     queryKey: ["/api/anomalies"],
+    queryFn: async () => {
+      const response = await coreAPI.getAnomalies();
+      return response.data.results;
+    },
   });
 
   // Calculate trust metrics

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { coreAPI } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,24 +21,34 @@ import {
 } from "lucide-react";
 
 interface Project {
-  id: string;
+  id: number;
   name: string;
   description?: string;
   status: string;
-  totalBudget: number;
-  allocatedAmount?: number;
-  spentAmount?: number;
-  departmentId?: string;
-  expectedBeneficiaries?: number;
+  budget: number;
+  spent: number;
+  department?: {
+    id: number;
+    name: string;
+  };
+  expected_beneficiaries?: number;
 }
 
 export function ImpactVisualization() {
   const { data: projects, isLoading: projectsLoading } = useQuery({
     queryKey: ["/api/projects"],
+    queryFn: async () => {
+      const response = await coreAPI.getProjects();
+      return response.data.results;
+    },
   });
 
   const { data: impactMetrics, isLoading: metricsLoading } = useQuery({
     queryKey: ["/api/impact-metrics"],
+    queryFn: async () => {
+      const response = await coreAPI.getImpactMetrics();
+      return response.data.results;
+    },
   });
 
   // Calculate impact summaries by department
@@ -45,19 +56,22 @@ export function ImpactVisualization() {
     if (!projects) return { education: {}, healthcare: {}, infrastructure: {} };
 
     const educationProjects = projects.filter((p: Project) => 
-      p.departmentId && p.description?.toLowerCase().includes('education') || 
+      p.department?.name?.toLowerCase().includes('education') || 
+      p.description?.toLowerCase().includes('education') ||
       p.name.toLowerCase().includes('classroom') ||
       p.name.toLowerCase().includes('school')
     );
 
     const healthcareProjects = projects.filter((p: Project) => 
-      p.departmentId && p.description?.toLowerCase().includes('health') ||
+      p.department?.name?.toLowerCase().includes('health') ||
+      p.description?.toLowerCase().includes('health') ||
       p.name.toLowerCase().includes('medical') ||
       p.name.toLowerCase().includes('hospital')
     );
 
     const infrastructureProjects = projects.filter((p: Project) => 
-      p.departmentId && p.description?.toLowerCase().includes('road') ||
+      p.department?.name?.toLowerCase().includes('infrastructure') ||
+      p.description?.toLowerCase().includes('road') ||
       p.name.toLowerCase().includes('infrastructure') ||
       p.name.toLowerCase().includes('maintenance')
     );
@@ -65,23 +79,23 @@ export function ImpactVisualization() {
     return {
       education: {
         projects: educationProjects.length,
-        budget: educationProjects.reduce((sum: number, p: Project) => sum + parseFloat(p.totalBudget.toString()), 0),
-        utilized: educationProjects.reduce((sum: number, p: Project) => sum + parseFloat(p.spentAmount?.toString() || "0"), 0),
-        beneficiaries: educationProjects.reduce((sum: number, p: Project) => sum + (p.expectedBeneficiaries || 0), 0),
+        budget: educationProjects.reduce((sum: number, p: Project) => sum + p.budget, 0),
+        utilized: educationProjects.reduce((sum: number, p: Project) => sum + p.spent, 0),
+        beneficiaries: educationProjects.reduce((sum: number, p: Project) => sum + (p.expected_beneficiaries || 0), 0),
         completed: educationProjects.filter((p: Project) => p.status === 'completed').length
       },
       healthcare: {
         projects: healthcareProjects.length,
-        budget: healthcareProjects.reduce((sum: number, p: Project) => sum + parseFloat(p.totalBudget.toString()), 0),
-        utilized: healthcareProjects.reduce((sum: number, p: Project) => sum + parseFloat(p.spentAmount?.toString() || "0"), 0),
-        beneficiaries: healthcareProjects.reduce((sum: number, p: Project) => sum + (p.expectedBeneficiaries || 0), 0),
+        budget: healthcareProjects.reduce((sum: number, p: Project) => sum + p.budget, 0),
+        utilized: healthcareProjects.reduce((sum: number, p: Project) => sum + p.spent, 0),
+        beneficiaries: healthcareProjects.reduce((sum: number, p: Project) => sum + (p.expected_beneficiaries || 0), 0),
         completed: healthcareProjects.filter((p: Project) => p.status === 'completed').length
       },
       infrastructure: {
         projects: infrastructureProjects.length,
-        budget: infrastructureProjects.reduce((sum: number, p: Project) => sum + parseFloat(p.totalBudget.toString()), 0),
-        utilized: infrastructureProjects.reduce((sum: number, p: Project) => sum + parseFloat(p.spentAmount?.toString() || "0"), 0),
-        beneficiaries: infrastructureProjects.reduce((sum: number, p: Project) => sum + (p.expectedBeneficiaries || 0), 0),
+        budget: infrastructureProjects.reduce((sum: number, p: Project) => sum + p.budget, 0),
+        utilized: infrastructureProjects.reduce((sum: number, p: Project) => sum + p.spent, 0),
+        beneficiaries: infrastructureProjects.reduce((sum: number, p: Project) => sum + (p.expected_beneficiaries || 0), 0),
         completed: infrastructureProjects.filter((p: Project) => p.status === 'completed').length
       }
     };

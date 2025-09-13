@@ -2,16 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { RoleSelector } from "@/components/RoleSelector";
 import { FundFlowDiagram } from "@/components/FundFlowDiagram";
 import { TrustIndicators } from "@/components/TrustIndicators";
 import { useRole } from "@/hooks/useRole";
+import { useToast } from "@/hooks/use-toast";
 import { DollarSign, TrendingUp, Building2, AlertTriangle, Users, FileCheck, Eye, Bot } from "lucide-react";
 import type { DashboardMetrics } from "@/lib/types";
 import { coreAPI } from "@/lib/api";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/currency";
 
 export default function Dashboard() {
   const { currentRole, roleConfig } = useRole();
+  const { toast } = useToast();
 
   const { data: metrics, isLoading, error } = useQuery<DashboardMetrics>({
     queryKey: ["dashboard-metrics"],
@@ -37,10 +41,19 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen" data-testid="page-dashboard">
+      {/* Header Section */}
+      <div className="container mx-auto px-4 py-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
+            <p className="text-muted-foreground">Overview of your financial transparency platform</p>
+          </div>
+          </div>
+      </div>
+
       {/* Hero Section with Role Selector */}
       <section className="bg-gradient-to-br from-primary/5 to-accent/5 py-8" data-testid="section-hero">
         <div className="container mx-auto px-4">
-          <RoleSelector />
           
           {/* Key Metrics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -62,7 +75,7 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <h3 className="text-2xl font-bold text-foreground" data-testid="text-total-budget">
-                      ₹{(metrics?.totalBudget || 0).toLocaleString('en-IN')}
+                      {formatCurrency(metrics?.total_budget || 0)}
                     </h3>
                     <p className="text-sm text-muted-foreground">Total Budget Allocated</p>
                     <div className="mt-2 flex items-center text-xs text-verified">
@@ -92,13 +105,13 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <h3 className="text-2xl font-bold text-foreground" data-testid="text-utilized-funds">
-                      ₹{(metrics?.utilizedFunds || 0).toLocaleString('en-IN')}
+                      {formatCurrency(metrics?.utilized_funds || 0)}
                     </h3>
                     <p className="text-sm text-muted-foreground">Funds Utilized</p>
                     <div className="mt-2 flex items-center text-xs text-primary">
                       <span>
-                        {metrics?.totalBudget ? 
-                          Math.round((metrics.utilizedFunds / metrics.totalBudget) * 100) : 0
+                        {metrics?.total_budget ? 
+                          Math.round((metrics.utilized_funds / metrics.total_budget) * 100) : 0
                         }% utilization rate
                       </span>
                     </div>
@@ -125,7 +138,7 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <h3 className="text-2xl font-bold text-foreground" data-testid="text-active-projects">
-                      {metrics?.activeProjects || 0}
+                      {metrics?.active_projects || 0}
                     </h3>
                     <p className="text-sm text-muted-foreground">Active Projects</p>
                     <div className="mt-2 flex items-center text-xs text-accent">
@@ -154,7 +167,7 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <h3 className="text-2xl font-bold text-foreground" data-testid="text-anomalies-count">
-                      {metrics?.anomaliesCount || 0}
+                      {metrics?.anomalies_count || 0}
                     </h3>
                     <p className="text-sm text-muted-foreground">Anomalies Detected</p>
                     <div className="mt-2 flex items-center text-xs text-warning">

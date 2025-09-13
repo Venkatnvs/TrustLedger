@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,21 +14,22 @@ import {
   Eye,
   DollarSign
 } from "lucide-react";
+import { coreAPI, fundFlowsAPI } from "@/lib/api";
 
 interface FundFlow {
-  id: string;
-  fromEntity: string;
-  toEntity: string;
+  id: number;
+  source_name: string;
+  target_name: string;
   amount: number;
-  purpose?: string;
+  description?: string;
   status: string;
-  createdAt?: string;
-  transactionHash?: string;
-  verificationStatus?: string;
+  created_at?: string;
+  transaction_hash?: string;
+  verification_status?: string;
 }
 
 interface Project {
-  id: string;
+  id: number;
   name: string;
 }
 
@@ -45,36 +47,21 @@ interface TimelineEvent {
 export function TimelineTracking() {
   const [selectedProject, setSelectedProject] = useState<string>("all");
 
-  // Mock data for now - replace with actual API calls
-  const projects = [
-    { id: "1", name: "Education Initiative" },
-    { id: "2", name: "Healthcare Program" },
-    { id: "3", name: "Infrastructure Project" }
-  ];
-  const projectsLoading = false;
-
-  const fundFlows = [
-    {
-      id: "1",
-      fromEntity: "Central Government",
-      toEntity: "Education Department",
-      amount: 5000000,
-      purpose: "School Infrastructure",
-      status: "completed",
-      createdAt: "2024-01-15T10:00:00Z",
-      transactionHash: "0x1234567890abcdef"
+  const { data: projects, isLoading: projectsLoading } = useQuery({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const response = await coreAPI.getProjects();
+      return response.data.results;
     },
-    {
-      id: "2",
-      fromEntity: "State Government",
-      toEntity: "Healthcare Department",
-      amount: 3000000,
-      purpose: "Medical Equipment",
-      status: "in_progress",
-      createdAt: "2024-01-20T14:30:00Z"
-    }
-  ];
-  const flowsLoading = false;
+  });
+
+  const { data: fundFlows, isLoading: flowsLoading } = useQuery({
+    queryKey: ["fund-flows", selectedProject === "all" ? undefined : selectedProject],
+    queryFn: async () => {
+      const response = await fundFlowsAPI.getFundFlows();
+      return response.data.results;
+    },
+  });
 
   const anomalies = [];
 
@@ -85,14 +72,14 @@ export function TimelineTracking() {
     if (fundFlows) {
       fundFlows.forEach((flow: FundFlow) => {
         events.push({
-          id: flow.id,
+          id: flow.id.toString(),
           title: `${flow.status === 'approved' ? 'Budget Approved' : 'Fund Flow ' + flow.status}`,
-          description: `${flow.fromEntity} → ${flow.toEntity}: ${flow.purpose || 'No description'}`,
-          date: flow.createdAt ? new Date(flow.createdAt).toISOString() : new Date().toISOString(),
+          description: `${flow.source_name} → ${flow.target_name}: ${flow.description || 'No description'}`,
+          date: flow.created_at ? new Date(flow.created_at).toISOString() : new Date().toISOString(),
           amount: parseFloat(flow.amount.toString()),
           status: flow.status as any,
           type: flow.status === 'approved' ? 'approval' : 'release',
-          documents: flow.transactionHash ? [`Transaction Hash: ${flow.transactionHash}`] : undefined
+          documents: flow.transaction_hash ? [`Transaction Hash: ${flow.transaction_hash}`] : undefined
         });
       });
     }

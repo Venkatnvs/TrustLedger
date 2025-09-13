@@ -25,22 +25,30 @@ import {
   User,
   Building2
 } from "lucide-react";
+import { coreAPI, documentsAPI } from "@/lib/api";
 
 interface Document {
-  id: string;
+  id: number;
   name: string;
-  type: string;
+  document_type: string;
   description?: string;
-  filePath: string;
-  fileSize?: number;
-  verificationStatus?: string;
-  projectId?: string;
-  uploadedBy?: string;
-  createdAt?: string;
+  file_path: string;
+  file_size?: number;
+  verification_status?: string;
+  project?: {
+    id: number;
+    name: string;
+  };
+  uploaded_by?: {
+    id: number;
+    username: string;
+  };
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface Project {
-  id: string;
+  id: number;
   name: string;
 }
 
@@ -56,16 +64,24 @@ export default function Documents() {
   const [showUpload, setShowUpload] = useState(false);
 
   const { data: documents, isLoading, error } = useQuery({
-    queryKey: ["/api/documents", selectedProject === "all" ? undefined : selectedProject],
+    queryKey: ["documents", selectedProject === "all" ? undefined : selectedProject],
+    queryFn: async () => {
+      const response = await documentsAPI.getDocuments();
+      return response.data.results;
+    },
   });
 
   const { data: projects } = useQuery({
-    queryKey: ["/api/projects"],
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const response = await coreAPI.getProjects();
+      return response.data.results;
+    },
   });
 
   const filteredDocuments = documents?.filter((doc: Document) => {
-    const matchesType = selectedType === "all" || doc.type === selectedType;
-    const matchesVerification = verificationFilter === "all" || doc.verificationStatus === verificationFilter;
+    const matchesType = selectedType === "all" || doc.document_type === selectedType;
+    const matchesVerification = verificationFilter === "all" || doc.verification_status === verificationFilter;
     const matchesSearch = !searchQuery || 
       doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       doc.description?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -114,7 +130,7 @@ export default function Documents() {
   const handleDownload = (document: Document) => {
     // Create a download link
     const link = window.document.createElement('a');
-    link.href = `/api/files/${document.filePath.split('/').pop()}`;
+    link.href = `/api/files/${document.file_path.split('/').pop()}`;
     link.download = document.name;
     link.click();
     
@@ -126,7 +142,7 @@ export default function Documents() {
 
   const handleView = (document: Document) => {
     // Open document in new tab
-    window.open(`/api/files/${document.filePath.split('/').pop()}`, '_blank');
+    window.open(`/api/files/${document.file_path.split('/').pop()}`, '_blank');
   };
 
   if (error) {
@@ -192,20 +208,20 @@ export default function Documents() {
                   </div>
                   <div className="text-center p-4 border border-border rounded-lg">
                     <div className="text-2xl font-bold text-verified">
-                      {documents?.filter((d: Document) => d.verificationStatus === 'verified').length || 0}
+                      {documents?.filter((d: Document) => d.verification_status === 'verified').length || 0}
                     </div>
                     <div className="text-sm text-muted-foreground">Verified</div>
                   </div>
                   <div className="text-center p-4 border border-border rounded-lg">
                     <div className="text-2xl font-bold text-warning">
-                      {documents?.filter((d: Document) => d.verificationStatus === 'under_review').length || 0}
+                      {documents?.filter((d: Document) => d.verification_status === 'under_review').length || 0}
                     </div>
                     <div className="text-sm text-muted-foreground">Under Review</div>
                   </div>
                   <div className="text-center p-4 border border-border rounded-lg">
                     <div className="text-2xl font-bold text-muted-foreground">
-                      {documents?.reduce((sum: number, d: Document) => sum + (d.fileSize || 0), 0) ? 
-                        formatFileSize(documents.reduce((sum: number, d: Document) => sum + (d.fileSize || 0), 0)) : 
+                      {documents?.reduce((sum: number, d: Document) => sum + (d.file_size || 0), 0) ? 
+                        formatFileSize(documents.reduce((sum: number, d: Document) => sum + (d.file_size || 0), 0)) : 
                         '0 MB'
                       }
                     </div>
@@ -244,7 +260,7 @@ export default function Documents() {
                   <SelectContent>
                     <SelectItem value="all">All Projects</SelectItem>
                     {projects?.map((project: Project) => (
-                      <SelectItem key={project.id} value={project.id}>
+                      <SelectItem key={project.id} value={project.id.toString()}>
                         {project.name.slice(0, 20)}...
                       </SelectItem>
                     ))}
@@ -310,27 +326,27 @@ export default function Documents() {
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center space-x-3">
                           <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                            {getDocumentIcon(document.type)}
+                            {getDocumentIcon(document.document_type)}
                           </div>
                           <div>
                             <h4 className="font-medium text-foreground" data-testid={`document-name-${document.id}`}>
                               {document.name}
                             </h4>
                             <p className="text-sm text-muted-foreground capitalize">
-                              {document.type.replace('_', ' ')}
+                              {document.document_type.replace('_', ' ')}
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="flex items-center">
-                            {getVerificationIcon(document.verificationStatus)}
+                            {getVerificationIcon(document.verification_status)}
                           </span>
                           <Badge 
                             variant="outline" 
-                            className={`text-xs ${getVerificationColor(document.verificationStatus)}`}
+                            className={`text-xs ${getVerificationColor(document.verification_status)}`}
                             data-testid={`document-status-${document.id}`}
                           >
-                            {document.verificationStatus?.replace('_', ' ') || 'Pending'}
+                            {document.verification_status?.replace('_', ' ') || 'Pending'}
                           </Badge>
                         </div>
                       </div>
@@ -344,11 +360,11 @@ export default function Documents() {
                       <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
                         <span className="flex items-center">
                           <Building2 className="w-3 h-3 mr-1" />
-                          Project: {document.projectId?.slice(0, 8) || 'General'}...
+                          Project: {document.project?.name || 'General'}
                         </span>
                         <span className="flex items-center">
                           <Calendar className="w-3 h-3 mr-1" />
-                          {document.createdAt ? new Date(document.createdAt).toLocaleDateString('en-IN') : 'No date'}
+                          {document.created_at ? new Date(document.created_at).toLocaleDateString('en-IN') : 'No date'}
                         </span>
                       </div>
                       
@@ -356,11 +372,11 @@ export default function Documents() {
                         <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                           <span className="flex items-center">
                             <FileText className="w-3 h-3 mr-1" />
-                            {formatFileSize(document.fileSize)}
+                            {formatFileSize(document.file_size)}
                           </span>
                           <span className="flex items-center">
                             <User className="w-3 h-3 mr-1" />
-                            Uploader: {document.uploadedBy?.slice(0, 8) || 'System'}...
+                            Uploader: {document.uploaded_by?.username || 'System'}
                           </span>
                         </div>
                         <div className="flex items-center space-x-2">

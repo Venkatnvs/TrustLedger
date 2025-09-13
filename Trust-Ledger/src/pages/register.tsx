@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,9 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Eye, EyeOff, Lock, Mail, Shield, ArrowLeft, User, Building2 } from "lucide-react";
+import { authAPI } from "@/lib/api";
 
 export default function Register() {
+  const [, setLocation] = useLocation();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -82,20 +86,48 @@ export default function Register() {
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Prepare data for backend API
+      const registrationData = {
+        username: formData.email, // Use email as username
+        email: formData.email,
+        password: formData.password,
+        password_confirm: formData.confirmPassword,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        role: formData.role,
+        phone_number: formData.organization || "", // Use organization field for phone
+      };
+
+      const response = await authAPI.register(registrationData);
       
-      toast({
-        title: "Registration Successful",
-        description: "Welcome to TrustLedger! Please check your email to verify your account.",
-      });
-      
-      // In a real app, you would redirect to login or dashboard
-      console.log("Registration successful", formData);
-    } catch (error) {
+      // Auto-login after successful registration
+      if (response.data.tokens) {
+        login(response.data.tokens.access, response.data.user);
+        
+        toast({
+          title: "Registration Successful",
+          description: "Welcome to TrustLedger! Your account has been created.",
+        });
+        
+        // Redirect to dashboard
+        setLocation('/dashboard');
+      } else {
+        toast({
+          title: "Registration Successful",
+          description: "Account created! Please sign in to continue.",
+        });
+        
+        // Redirect to login
+        setLocation('/login');
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || 
+                          error.response?.data?.error || 
+                          error.response?.data?.message ||
+                          "Registration failed. Please try again.";
       toast({
         title: "Registration Failed",
-        description: error instanceof Error ? error.message : "Something went wrong. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -106,15 +138,7 @@ export default function Register() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Back to Home */}
-        <div className="mb-6">
-          <Link href="/">
-            <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
-            </Button>
-          </Link>
-        </div>
+
 
         {/* Register Card */}
         <Card className="shadow-lg border-0">
@@ -191,9 +215,9 @@ export default function Register() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="citizen">Citizen</SelectItem>
-                    <SelectItem value="donor">Donor</SelectItem>
                     <SelectItem value="auditor">Auditor</SelectItem>
                     <SelectItem value="committee">Committee Member</SelectItem>
+                    <SelectItem value="admin">Administrator</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { ImpactVisualization } from "@/components/ImpactVisualization";
+import { BudgetManagement } from "@/components/BudgetManagement";
+import { AnomalyDetection } from "@/components/AnomalyDetection";
 import { useRole } from "@/hooks/useRole";
 import { 
   Search, 
@@ -24,26 +26,35 @@ import {
   FileText,
   BarChart3
 } from "lucide-react";
+import { coreAPI } from "@/lib/api";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/currency";
 
 interface Project {
-  id: string;
+  id: number;
   name: string;
   description?: string;
   status: string;
-  totalBudget: number;
-  allocatedAmount?: number;
-  spentAmount?: number;
-  departmentId?: string;
-  vendorId?: string;
-  startDate?: string;
-  expectedBeneficiaries?: number;
-  impactScore?: number;
-  verificationStatus?: string;
+  budget: number;
+  spent: number;
+  department?: {
+    id: number;
+    name: string;
+  };
+  vendor?: {
+    id: number;
+    name: string;
+  };
+  start_date?: string;
+  expected_beneficiaries?: number;
+  impact_score?: number;
+  verification_status?: string;
   location?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface Department {
-  id: string;
+  id: number;
   name: string;
 }
 
@@ -54,11 +65,19 @@ export default function Projects() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: projects, isLoading, error } = useQuery({
-    queryKey: ["/api/projects", { departmentId: departmentFilter === "all" ? undefined : departmentFilter, status: statusFilter === "all" ? undefined : statusFilter }],
+    queryKey: ["projects", { departmentId: departmentFilter === "all" ? undefined : departmentFilter, status: statusFilter === "all" ? undefined : statusFilter }],
+    queryFn: async () => {
+      const response = await coreAPI.getProjects();
+      return response.data.results;
+    },
   });
 
   const { data: departments } = useQuery({
-    queryKey: ["/api/departments"],
+    queryKey: ["departments"],
+    queryFn: async () => {
+      const response = await coreAPI.getDepartments();
+      return response.data.results;
+    },
   });
 
   const filteredProjects = projects?.filter((project: Project) => {
@@ -97,8 +116,8 @@ export default function Projects() {
   };
 
   const calculateProgress = (project: Project) => {
-    const allocated = parseFloat(project.allocatedAmount?.toString() || "0");
-    const total = parseFloat(project.totalBudget.toString());
+    const allocated = project.spent;
+    const total = project.budget;
     return total > 0 ? Math.round((allocated / total) * 100) : 0;
   };
 
@@ -118,13 +137,29 @@ export default function Projects() {
     <main className="min-h-screen bg-background" data-testid="page-projects">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="text-page-title">Projects</h1>
-          <p className="text-muted-foreground">Monitor project progress, budgets, and impact metrics</p>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="text-page-title">Projects</h1>
+              <p className="text-muted-foreground">Monitor project progress, budgets, and impact metrics</p>
+            </div>
+            {currentRole === 'admin' as any && (
+              <Button className="flex items-center space-x-2">
+                <Building2 className="w-4 h-4" />
+                <span>Create Project</span>
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Impact Visualization */}
         <div className="mb-8">
           <ImpactVisualization />
+        </div>
+
+        {/* Budget Management and Anomaly Detection */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          <BudgetManagement />
+          <AnomalyDetection />
         </div>
 
         {/* Projects List */}
@@ -133,12 +168,10 @@ export default function Projects() {
             <CardTitle className="flex items-center justify-between">
               <span>All Projects</span>
               <div className="flex items-center space-x-2">
-                {(currentRole === 'committee' || currentRole === 'admin') && (
                   <Button variant="default" size="sm" data-testid="button-add-project">
                     <Building2 className="w-4 h-4 mr-2" />
                     Add Project
                   </Button>
-                )}
               </div>
             </CardTitle>
           </CardHeader>
@@ -164,11 +197,11 @@ export default function Projects() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Departments</SelectItem>
-                  {departments?.map((dept: Department) => (
-                    <SelectItem key={dept.id} value={dept.id} data-testid={`option-department-${dept.id}`}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
+                    {departments?.map((dept: Department) => (
+                      <SelectItem key={dept.id} value={dept.id.toString()} data-testid={`option-department-${dept.id}`}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
 
@@ -221,8 +254,7 @@ export default function Projects() {
                           </CardTitle>
                           <p className="text-sm text-muted-foreground flex items-center mt-1">
                             <Building2 className="w-4 h-4 mr-1" />
-                            {/* Department name would be resolved via join in real app */}
-                            Department: {project.departmentId?.slice(0, 8)}...
+                            Department: {project.department?.name || 'Unknown'}
                           </p>
                         </div>
                         <div className="flex flex-col items-end space-y-2">
@@ -234,12 +266,12 @@ export default function Projects() {
                             <span className="mr-1">{getStatusIcon(project.status)}</span>
                             {project.status}
                           </Badge>
-                          {project.verificationStatus && (
+                          {project.verification_status && (
                             <Badge 
                               variant="outline" 
-                              className={`text-xs ${getVerificationColor(project.verificationStatus)}`}
+                              className={`text-xs ${getVerificationColor(project.verification_status)}`}
                             >
-                              {project.verificationStatus.replace('_', ' ')}
+                              {project.verification_status.replace('_', ' ')}
                             </Badge>
                           )}
                         </div>
@@ -254,13 +286,13 @@ export default function Projects() {
                         <div className="space-y-1">
                           <p className="text-xs text-muted-foreground">Total Budget</p>
                           <p className="text-lg font-bold text-primary" data-testid={`project-budget-${project.id}`}>
-                            ₹{parseFloat(project.totalBudget.toString()).toLocaleString('en-IN')}
+                            {formatCurrency(project.budget)}
                           </p>
                         </div>
                         <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground">Allocated</p>
+                          <p className="text-xs text-muted-foreground">Spent</p>
                           <p className="text-lg font-bold text-foreground" data-testid={`project-allocated-${project.id}`}>
-                            ₹{parseFloat(project.allocatedAmount?.toString() || "0").toLocaleString('en-IN')}
+                            {formatCurrency(project.spent)}
                           </p>
                         </div>
                       </div>
@@ -277,20 +309,20 @@ export default function Projects() {
                         <div className="flex items-center">
                           <Calendar className="w-3 h-3 mr-1" />
                           <span>
-                            {project.startDate ? new Date(project.startDate).toLocaleDateString('en-IN') : 'No start date'}
+                            {project.start_date ? new Date(project.start_date).toLocaleDateString('en-IN') : 'No start date'}
                           </span>
                         </div>
                         <div className="flex items-center">
                           <Users className="w-3 h-3 mr-1" />
-                          <span>{project.expectedBeneficiaries || 0} beneficiaries</span>
+                          <span>{project.expected_beneficiaries || 0} beneficiaries</span>
                         </div>
                       </div>
 
-                      {project.impactScore !== null && project.impactScore !== undefined && (
+                      {project.impact_score !== null && project.impact_score !== undefined && (
                         <div className="flex items-center justify-between p-2 bg-accent/10 rounded-lg mb-4">
                           <span className="text-sm font-medium">Impact Score</span>
                           <Badge variant="secondary" className="bg-accent text-accent-foreground">
-                            {project.impactScore}/100
+                            {project.impact_score}/100
                           </Badge>
                         </div>
                       )}
@@ -361,12 +393,12 @@ export default function Projects() {
                   </div>
                   <div className="text-sm text-muted-foreground">Active</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-foreground">
-                    ₹{filteredProjects.reduce((sum: number, p: Project) => sum + parseFloat(p.totalBudget.toString()), 0).toLocaleString('en-IN')}
-                  </div>
-                  <div className="text-sm text-muted-foreground">Total Budget</div>
-                </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-foreground">
+            {formatCurrency(filteredProjects.reduce((sum: number, p: Project) => sum + p.budget, 0))}
+          </div>
+          <div className="text-sm text-muted-foreground">Total Budget</div>
+        </div>
               </div>
             )}
           </CardContent>

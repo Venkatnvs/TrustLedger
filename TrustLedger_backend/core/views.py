@@ -1,14 +1,18 @@
 from rest_framework import generics, status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from django.db.models import Q, Sum, Count
+from django.db.models import Q, Sum, Count, Avg
 from django.utils import timezone
-from .models import Department, Project, ImpactMetric
+from django.contrib.auth import get_user_model
+from .models import Department, Project, ImpactMetric, CommunityFeedback, BudgetVersion, AuditLog
 from .serializers import (
     DepartmentSerializer, DepartmentListSerializer, ProjectSerializer,
     ProjectListSerializer, ProjectCreateSerializer, ProjectUpdateSerializer,
-    ImpactMetricSerializer
+    ImpactMetricSerializer, CommunityFeedbackSerializer, CommunityFeedbackCreateSerializer,
+    BudgetVersionSerializer, AuditLogSerializer, DashboardMetricsSerializer
 )
+
+User = get_user_model()
 
 
 class DepartmentListView(generics.ListCreateAPIView):
@@ -222,3 +226,220 @@ def department_performance_view(request):
         })
     
     return Response(performance_data, status=status.HTTP_200_OK)
+
+
+# Community Feedback Views
+class CommunityFeedbackListView(generics.ListCreateAPIView):
+    """View for listing and creating community feedback"""
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['feedback_type', 'priority', 'status', 'project', 'department']
+    search_fields = ['title', 'description']
+    ordering_fields = ['created_at', 'priority']
+    ordering = ['-created_at']
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_admin or user.is_auditor:
+            return CommunityFeedback.objects.all()
+        else:
+            # Regular users can only see public feedback
+            return CommunityFeedback.objects.filter(is_public=True)
+    
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return CommunityFeedbackSerializer
+        return CommunityFeedbackCreateSerializer
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class CommunityFeedbackDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """View for community feedback details"""
+    queryset = CommunityFeedback.objects.all()
+    serializer_class = CommunityFeedbackSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        # Handle AnonymousUser for Swagger schema generation
+        if not user.is_authenticated:
+            return CommunityFeedback.objects.none()
+        
+        if user.is_admin or user.is_auditor:
+            return CommunityFeedback.objects.all()
+        else:
+            # Users can only see their own feedback or public feedback
+            return CommunityFeedback.objects.filter(
+                Q(user=user) | Q(is_public=True)
+            )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def respond_to_feedback_view(request, feedback_id):
+    """View for responding to community feedback"""
+    try:
+        feedback = CommunityFeedback.objects.get(id=feedback_id)
+        
+        # Only admins, auditors, and department heads can respond
+        if not (request.user.is_admin or request.user.is_auditor or request.user.is_department_head):
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        response_text = request.data.get('response')
+        if not response_text:
+            return Response({'error': 'Response text is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        feedback.response = response_text
+        feedback.responded_by = request.user
+        feedback.responded_at = timezone.now()
+        feedback.status = 'responded'
+        feedback.save()
+        
+        return Response({'message': 'Response added successfully'}, status=status.HTTP_200_OK)
+    except CommunityFeedback.DoesNotExist:
+        return Response({'error': 'Feedback not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def update_feedback_status_view(request, feedback_id):
+    """View for updating feedback status"""
+    try:
+        feedback = CommunityFeedback.objects.get(id=feedback_id)
+        
+        # Only admins and auditors can update status
+        if not (request.user.is_admin or request.user.is_auditor):
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        new_status = request.data.get('status')
+        if new_status not in ['pending', 'under_review', 'responded', 'resolved', 'closed']:
+            return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        feedback.status = new_status
+        feedback.save()
+        
+        return Response({'message': 'Status updated successfully'}, status=status.HTTP_200_OK)
+    except CommunityFeedback.DoesNotExist:
+        return Response({'error': 'Feedback not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+# Budget Version Views
+class BudgetVersionListView(generics.ListCreateAPIView):
+    """View for listing and creating budget versions"""
+    queryset = BudgetVersion.objects.all()
+    serializer_class = BudgetVersionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['project']
+    ordering = ['-version_number']
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def create_budget_version_view(request, project_id):
+    """View for creating a new budget version"""
+    try:
+        project = Project.objects.get(id=project_id)
+        
+        # Only project managers, department heads, and admins can create versions
+        if not (request.user.is_admin or request.user.is_department_head or project.manager == request.user):
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        new_budget = request.data.get('budget_amount')
+        change_reason = request.data.get('change_reason')
+        
+        if not new_budget or not change_reason:
+            return Response({'error': 'Budget amount and change reason are required'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get the latest version number
+        latest_version = BudgetVersion.objects.filter(project=project).order_by('-version_number').first()
+        version_number = (latest_version.version_number + 1) if latest_version else 1
+        
+        # Create new version
+        version = BudgetVersion.objects.create(
+            project=project,
+            version_number=version_number,
+            budget_amount=new_budget,
+            change_reason=change_reason,
+            changed_by=request.user,
+            previous_version=latest_version
+        )
+        
+        # Update project budget
+        project.budget = new_budget
+        project.save()
+        
+        serializer = BudgetVersionSerializer(version)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    except Project.DoesNotExist:
+        return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+# Audit Log Views
+class AuditLogListView(generics.ListAPIView):
+    """View for listing audit logs"""
+    queryset = AuditLog.objects.all()
+    serializer_class = AuditLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['user', 'action', 'model_name']
+    ordering = ['-timestamp']
+    
+    def get_queryset(self):
+        # Only admins and auditors can see audit logs
+        if not (self.request.user.is_admin or self.request.user.is_auditor):
+            return AuditLog.objects.none()
+        return AuditLog.objects.all()
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def enhanced_dashboard_metrics_view(request):
+    """Enhanced view for dashboard metrics with all required data"""
+    # Calculate total budget
+    total_budget = Department.objects.aggregate(
+        total=Sum('budget')
+    )['total'] or 0
+    
+    # Calculate utilized funds
+    utilized_funds = Project.objects.aggregate(
+        total=Sum('spent')
+    )['total'] or 0
+    
+    # Count active projects
+    active_projects = Project.objects.filter(status='active').count()
+    
+    # Count anomalies (from fund_flows app)
+    from fund_flows.models import Anomaly
+    anomalies_count = Anomaly.objects.filter(resolved=False).count()
+    
+    # Count departments
+    departments_count = Department.objects.count()
+    
+    # Calculate average trust score
+    from fund_flows.models import TrustIndicator
+    trust_indicators = TrustIndicator.objects.all()
+    if trust_indicators.exists():
+        trust_scores = [indicator.overall_score for indicator in trust_indicators]
+        trust_score = int(sum(trust_scores) / len(trust_scores))
+    else:
+        trust_score = 0
+    
+    # Count community feedback
+    community_feedback_count = CommunityFeedback.objects.filter(status='pending').count()
+    
+    # Count pending verifications
+    pending_verifications = ImpactMetric.objects.filter(verified=False).count()
+    
+    metrics = {
+        'totalBudget': float(total_budget),
+        'utilizedFunds': float(utilized_funds),
+        'activeProjects': active_projects,
+        'anomaliesCount': anomalies_count,
+        'departmentsCount': departments_count,
+        'trustScore': trust_score,
+        'communityFeedbackCount': community_feedback_count,
+        'pendingVerifications': pending_verifications,
+    }
+    
+    return Response(metrics, status=status.HTTP_200_OK)

@@ -6,11 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Eye, EyeOff, Lock, Mail, Shield, ArrowLeft } from "lucide-react";
 import { authAPI } from "@/lib/api";
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -38,10 +40,11 @@ export default function Login() {
         password: formData.password,
       });
       
-      // Store tokens
-      localStorage.setItem('access_token', response.data.tokens.access);
-      localStorage.setItem('refresh_token', response.data.tokens.refresh);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      // Use the auth hook to handle login
+      console.log('Login response:', response.data);
+      login(response.data.tokens.access, response.data.user);
+      
+      console.log('Login successful, redirecting to dashboard');
       
       toast({
         title: "Login Successful",
@@ -53,7 +56,9 @@ export default function Login() {
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || 
                           error.response?.data?.error || 
-                          "Invalid credentials";
+                          error.response?.data?.message ||
+                          error.message ||
+                          "Invalid credentials. Please check your username and password.";
       toast({
         title: "Login Failed",
         description: errorMessage,
@@ -66,16 +71,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Back to Home */}
-        <div className="mb-6">
-          <Link href="/">
-            <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
-            </Button>
-          </Link>
-        </div>
+      <div className="w-full max-w-md pb-4">
 
         {/* Login Card */}
         <Card className="shadow-lg border-0">

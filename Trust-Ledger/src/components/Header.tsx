@@ -3,6 +3,9 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useRole } from "@/hooks/useRole";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { UserProfile } from "@/components/UserProfile";
 import { 
   Shield, 
   Menu, 
@@ -14,13 +17,19 @@ import {
   Building2,
   LogIn,
   UserPlus,
-  LogOut
+  LogOut,
+  Settings
 } from "lucide-react";
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [location] = useLocation();
   const { currentRole, getRoleConfig } = useRole();
+  const { logout, isAuthenticated, user, isLoading } = useAuth();
+  const { toast } = useToast();
+
+  // Debug logging
+  console.log('Header render - isAuthenticated:', isAuthenticated, 'user:', user, 'isLoading:', isLoading);
 
   const navigation = [
     { name: "Dashboard", href: "/", icon: BarChart3 },
@@ -76,20 +85,38 @@ export function Header() {
             })}
           </nav>
 
-          {/* Auth Buttons */}
-          <div className="hidden md:flex items-center space-x-2">
-            <Link href="/login">
-              <Button variant="ghost" size="sm" data-testid="button-login">
-                <LogIn className="w-4 h-4 mr-2" />
-                Login
-              </Button>
-            </Link>
-            <Link href="/register">
-              <Button size="sm" data-testid="button-register">
-                <UserPlus className="w-4 h-4 mr-2" />
-                Register
-              </Button>
-            </Link>
+          {/* Auth Buttons & Profile */}
+          <div className="hidden md:flex items-center space-x-3">
+            {isLoading ? (
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-sm text-muted-foreground">Loading...</span>
+              </div>
+            ) : isAuthenticated ? (
+              <>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-muted-foreground">
+                    Welcome, {user?.first_name || user?.username || 'User'}
+                  </span>
+                  <UserProfile />
+                </div>
+              </>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost" size="sm" data-testid="button-login">
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Login
+                  </Button>
+                </Link>
+                <Link href="/register">
+                  <Button size="sm" data-testid="button-register">
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Register
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -131,27 +158,77 @@ export function Header() {
               
               <div className="pt-4 border-t">
                 <div className="flex flex-col space-y-2">
-                  <Link href="/login">
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start"
-                      onClick={() => setIsMenuOpen(false)}
-                      data-testid="mobile-button-login"
-                    >
-                      <LogIn className="w-4 h-4 mr-2" />
-                      Login
-                    </Button>
-                  </Link>
-                  <Link href="/register">
-                    <Button 
-                      className="w-full justify-start"
-                      onClick={() => setIsMenuOpen(false)}
-                      data-testid="mobile-button-register"
-                    >
-                      <UserPlus className="w-4 h-4 mr-2" />
-                      Register
-                    </Button>
-                  </Link>
+                  {isLoading ? (
+                    <div className="flex items-center space-x-2 px-2 py-1">
+                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-sm text-muted-foreground">Loading...</span>
+                    </div>
+                  ) : isAuthenticated ? (
+                    <>
+                      <Link href="/settings">
+                        <Button 
+                          variant="ghost" 
+                          className="w-full justify-start"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <Settings className="w-4 h-4 mr-2" />
+                          Settings
+                        </Button>
+                      </Link>
+                      <div className="flex items-center space-x-2 px-2 py-1">
+                        <UserProfile />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">
+                            {user?.first_name || user?.username || 'User'}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {user?.email}
+                          </span>
+                        </div>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        className="w-full justify-start"
+                        onClick={() => {
+                          toast({
+                            title: "Logged out successfully",
+                            description: "You have been logged out of your account.",
+                          });
+                          logout();
+                          setIsMenuOpen(false);
+                        }}
+                        data-testid="mobile-button-logout"
+                      >
+                        <LogOut className="w-4 h-4 mr-2" />
+                        Logout
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Link href="/login">
+                        <Button 
+                          variant="ghost" 
+                          className="w-full justify-start"
+                          onClick={() => setIsMenuOpen(false)}
+                          data-testid="mobile-button-login"
+                        >
+                          <LogIn className="w-4 h-4 mr-2" />
+                          Login
+                        </Button>
+                      </Link>
+                      <Link href="/register">
+                        <Button 
+                          variant="default" 
+                          className="w-full justify-start"
+                          onClick={() => setIsMenuOpen(false)}
+                          data-testid="mobile-button-register"
+                        >
+                          <UserPlus className="w-4 h-4 mr-2" />
+                          Register
+                        </Button>
+                      </Link>
+                    </>
+                  )}
                 </div>
               </div>
             </nav>

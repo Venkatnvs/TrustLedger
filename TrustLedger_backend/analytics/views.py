@@ -10,7 +10,7 @@ from .models import (
 )
 from .serializers import (
     DashboardMetricsSerializer, SearchFilterSerializer, SearchFilterCreateSerializer,
-    AuditLogSerializer, ReportSerializer, ReportCreateSerializer,
+    AnalyticsAuditLogSerializer, ReportSerializer, ReportCreateSerializer,
     NotificationSerializer, NotificationCreateSerializer,
     SystemConfigurationSerializer, SystemConfigurationUpdateSerializer,
     AnalyticsDataSerializer, DepartmentPerformanceSerializer, ProjectStatusSerializer
@@ -54,7 +54,7 @@ class SearchFilterDetailView(generics.RetrieveUpdateDestroyAPIView):
 class AuditLogListView(generics.ListAPIView):
     """View for listing audit logs"""
     queryset = AuditLog.objects.all()
-    serializer_class = AuditLogSerializer
+    serializer_class = AnalyticsAuditLogSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['user', 'action', 'model_name']
     search_fields = ['object_repr']
@@ -122,6 +122,9 @@ class NotificationDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
+        # Handle AnonymousUser for Swagger schema generation
+        if not self.request.user.is_authenticated:
+            return Notification.objects.none()
         return Notification.objects.filter(user=self.request.user)
 
 

@@ -24,25 +24,42 @@ import {
   Calendar
 } from "lucide-react";
 import type { DashboardMetrics } from "@/lib/types";
+import { coreAPI, fundFlowsAPI, communityFeedbackAPI } from "@/lib/api";
 
 export default function Analytics() {
   const { currentRole } = useRole();
 
   const { data: metrics, isLoading, error } = useQuery<DashboardMetrics>({
-    queryKey: ["/api/dashboard/metrics"],
+    queryKey: ["dashboard-metrics"],
+    queryFn: async () => {
+      const response = await coreAPI.getDashboardMetrics();
+      return response.data;
+    },
     refetchInterval: 30000,
   });
 
   const { data: projects } = useQuery({
-    queryKey: ["/api/projects"],
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const response = await coreAPI.getProjects();
+      return response.data.results;
+    },
   });
 
   const { data: anomalies } = useQuery({
-    queryKey: ["/api/anomalies"],
+    queryKey: ["anomalies"],
+    queryFn: async () => {
+      const response = await fundFlowsAPI.getAnomalies();
+      return response.data.results;
+    },
   });
 
   const { data: communityReports } = useQuery({
-    queryKey: ["/api/community-reports"],
+    queryKey: ["community-feedback"],
+    queryFn: async () => {
+      const response = await communityFeedbackAPI.getFeedback();
+      return response.data.results;
+    },
   });
 
   if (error) {
@@ -106,8 +123,8 @@ export default function Analytics() {
               ) : (
                 <>
                   <h3 className="text-2xl font-bold text-foreground" data-testid="text-utilization-rate">
-                    {metrics?.totalBudget && metrics?.utilizedFunds ? 
-                      Math.round((metrics.utilizedFunds / metrics.totalBudget) * 100) : 0
+                    {metrics?.total_budget && metrics?.utilized_funds ? 
+                      Math.round((metrics.utilized_funds / metrics.total_budget) * 100) : 0
                     }%
                   </h3>
                   <p className="text-sm text-muted-foreground">Budget Utilization</p>
