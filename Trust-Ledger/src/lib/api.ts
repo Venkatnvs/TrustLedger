@@ -3,7 +3,7 @@ import { clearAuthTokens } from '@/utils/auth';
 
 // Create axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: 'https://trustledger-vvwh.onrender.com/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -36,7 +36,7 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('refresh_token');
         if (refreshToken) {
           console.log('Attempting to refresh token...');
-          const response = await axios.post('http://localhost:8000/api/token/refresh/', {
+          const response = await axios.post('https://trustledger-vvwh.onrender.com/api/token/refresh/', {
             refresh: refreshToken,
           });
           

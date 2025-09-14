@@ -138,7 +138,7 @@ export default function Documents() {
   const handleDownload = (document: Document) => {
     // Create a download link using the authenticated file serving endpoint
     const link = window.document.createElement('a');
-    link.href = `http://localhost:8000/api/documents/${document.id}/file/`;
+    link.href = `https://trustledger-vvwh.onrender.com/api/documents/${document.id}/file/`;
     link.download = document.name;
     link.target = '_blank';
     link.click();
@@ -151,7 +151,7 @@ export default function Documents() {
 
   const handleView = (document: Document) => {
     // Open document in new tab using the authenticated file serving endpoint
-    window.open(`http://localhost:8000/api/documents/${document.id}/file/`, '_blank');
+    window.open(`https://trustledger-vvwh.onrender.com/api/documents/${document.id}/file/`, '_blank');
   };
 
   if (error) {
