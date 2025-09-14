@@ -63,7 +63,7 @@ export function TimelineTracking() {
     },
   });
 
-  const anomalies = [];
+  const anomalies: any[] = [];
 
   // Convert fund flows and other data into timeline events
   const generateTimelineEvents = (): TimelineEvent[] => {
@@ -156,7 +156,7 @@ export function TimelineTracking() {
               <SelectContent>
                 <SelectItem value="all">All Projects Timeline</SelectItem>
                 {projects?.map((project: Project) => (
-                  <SelectItem key={project.id} value={project.id} data-testid={`option-timeline-project-${project.id}`}>
+                  <SelectItem key={project.id} value={project.id.toString()} data-testid={`option-timeline-project-${project.id}`}>
                     {project.name}
                   </SelectItem>
                 ))}
