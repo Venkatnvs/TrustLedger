@@ -1,18 +1,13 @@
-Django==4.2.7
-djangorestframework==3.14.0
-django-cors-headers==4.3.1
-djangorestframework-simplejwt==5.3.0
-drf-yasg==1.21.7
-Pillow==10.1.0
-python-decouple==3.8
-django-filter==23.3
-django-extensions==3.2.3
-
-# AI and ML dependencies
-google-generativeai==0.3.2
-langchain==0.1.0
-langchain-google-genai==0.0.6
-
-# Additional utilities
-requests==2.31.0
-python-dotenv==1.0.0
+Django
+djangorestframework
+django-cors-headers
+djangorestframework-simplejwt
+drf-yasg
+Pillow
+python-decouple
+django-filter
+google-generativeai
+langchain
+langchain-google-genai
+requests
+python-dotenv
