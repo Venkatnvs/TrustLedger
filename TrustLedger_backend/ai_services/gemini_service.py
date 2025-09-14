@@ -32,9 +32,9 @@ class GeminiService:
     """Service for integrating with Google Gemini AI API using LangChain"""
     
     def __init__(self):
-        self.api_key = os.getenv('GEMINI_API_KEY')
+        self.api_key = os.getenv('GEMINI_API_KEY',"AIzaSyAoBmd8UiGipb9TZ6C4YmDP2EELMGyNeqI")
         self.cache_timeout = 300  # 5 minutes
-        self.model_name = "gemini-pro"
+        self.model_name = "gemini-2.5-flash"
         
         # Initialize Google Generative AI
         if self.is_available() and GEMINI_AVAILABLE:
