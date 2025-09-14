@@ -9,6 +9,10 @@ A comprehensive web platform designed to provide complete transparency in fund f
 - **API Documentation (Swagger)**: [https://trustledger-vvwh.onrender.com](https://trustledger-vvwh.onrender.com)
 - **Admin Panel**: [https://trustledger-vvwh.onrender.com/admin](https://trustledger-vvwh.onrender.com/admin)
 
+## Video Demo
+
+https://github.com/user-attachments/assets/a7b8e5f0-f492-4544-b429-635459abdbb7
+
 ### 🔑 Demo Credentials
 
 Use these credentials to test different user roles:
